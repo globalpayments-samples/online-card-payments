@@ -1,13 +1,16 @@
 {
-    "name": "shane/php",
+    "name": "globalpayments/drop-in-ui-sale",
+    "description": "Global Payments Drop-In UI implementation for Sale transactions",
     "require": {
-        "globalpayments/php-sdk": "^13.1",
+        "php": ">=7.4",
+        "ext-curl": "*",
+        "ext-json": "*",
         "vlucas/phpdotenv": "^5.5"
     },
     "authors": [
         {
-            "name": "Shane Logsdon",
-            "email": "shane@shanelogsdon.com"
+            "name": "Global Payments",
+            "email": "developers@globalpay.com"
         }
     ]
 }
