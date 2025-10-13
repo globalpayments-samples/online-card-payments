@@ -53,9 +53,7 @@ try {
         'nonce' => $nonce,
         'secret' => hash('sha512', $nonce . $_ENV['GP_APP_KEY']),
         'grant_type' => 'client_credentials',
-        'seconds_to_expire' => 600, // 10 minutes
-        'interval_to_expire' => 'SECONDS',
-        'permissions' => ['PMT_POST_Create_Single']
+        'seconds_to_expire' => 600 // 10 minutes
     ];
 
     // Determine API endpoint based on environment
@@ -73,6 +71,7 @@ try {
             'Content-Type: application/json',
             'X-GP-Version: 2021-03-22'
         ],
+        CURLOPT_ENCODING => '', // Enable automatic decompression
         CURLOPT_TIMEOUT => 30
     ]);
 

@@ -3,16 +3,15 @@
 declare(strict_types=1);
 
 /**
- * Card Payment Processing Script
+ * Sale Transaction Processing Script
  *
- * This script demonstrates card payment processing using the Global Payments SDK.
- * It handles tokenized card data and billing information to process payments
- * securely through the Global Payments API.
+ * This script processes Sale transactions using the Global Payments GP-API with Drop-In UI tokens.
+ * A Sale transaction combines authorization and capture in a single operation.
  *
  * PHP version 7.4 or higher
  *
  * @category  Payment_Processing
- * @package   GlobalPayments_Sample
+ * @package   GlobalPayments_DropInUI
  * @author    Global Payments
  * @license   MIT License
  * @link      https://github.com/globalpayments
@@ -21,115 +20,205 @@ declare(strict_types=1);
 require_once 'vendor/autoload.php';
 
 use Dotenv\Dotenv;
-use GlobalPayments\Api\Entities\Address;
-use GlobalPayments\Api\Entities\Exceptions\ApiException;
-use GlobalPayments\Api\PaymentMethods\CreditCardData;
-use GlobalPayments\Api\ServiceConfigs\Gateways\PorticoConfig;
-use GlobalPayments\Api\ServicesContainer;
+
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+
+// Handle preflight OPTIONS request
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
 ini_set('display_errors', '0');
 
 /**
- * Configure the SDK
+ * Generate access token for payment processing
  *
- * Sets up the Global Payments SDK with necessary credentials and settings
- * loaded from environment variables.
+ * Creates a new access token with transaction permissions (PMT_POST_Create)
  *
- * @return void
+ * @return string The access token
+ * @throws Exception If token generation fails
  */
-function configureSdk(): void
+function generatePaymentAccessToken(): string
 {
-    $dotenv = Dotenv::createImmutable(__DIR__);
-    $dotenv->load();
+    $nonce = bin2hex(random_bytes(16));
 
-    $config = new PorticoConfig();
-    $config->secretApiKey = $_ENV['SECRET_API_KEY'];
-    $config->developerId = '000000';
-    $config->versionNumber = '0000';
-    $config->serviceUrl = 'https://cert.api2.heartlandportico.com';
-    
-    ServicesContainer::configureService($config);
+    $requestData = [
+        'app_id' => $_ENV['GP_APP_ID'],
+        'nonce' => $nonce,
+        'secret' => hash('sha512', $nonce . $_ENV['GP_APP_KEY']),
+        'grant_type' => 'client_credentials',
+        'seconds_to_expire' => 600,
+        'permissions' => ['PMT_POST_Create']
+    ];
+
+    $apiEndpoint = ($_ENV['GP_ENVIRONMENT'] ?? 'sandbox') === 'production'
+        ? 'https://apis.globalpay.com/ucp/accesstoken'
+        : 'https://apis.sandbox.globalpay.com/ucp/accesstoken';
+
+    $ch = curl_init($apiEndpoint);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($requestData),
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'X-GP-Version: 2021-03-22'
+        ],
+        CURLOPT_TIMEOUT => 30
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError) {
+        throw new Exception('Token generation failed: ' . $curlError);
+    }
+
+    $responseData = json_decode($response, true);
+
+    if ($httpCode !== 200 || empty($responseData['token'])) {
+        $errorMessage = $responseData['error_description'] ?? $responseData['message'] ?? 'Failed to generate payment token';
+        throw new Exception($errorMessage);
+    }
+
+    return $responseData['token'];
 }
 
 /**
- * Sanitize postal code by removing invalid characters
+ * Process a Sale transaction
  *
- * @param string|null $postalCode The postal code to sanitize
- *
- * @return string Sanitized postal code containing only alphanumeric
- *                characters and hyphens, limited to 10 characters
+ * @param string $paymentReference The payment token from Drop-In UI
+ * @param float $amount The transaction amount
+ * @param string $currency The currency code (default: USD)
+ * @param string|null $billingZip Optional billing ZIP code for AVS
+ * @return array The transaction response
+ * @throws Exception If transaction fails
  */
-function sanitizePostalCode(?string $postalCode): string
+function processSaleTransaction(string $paymentReference, float $amount, string $currency = 'USD', ?string $billingZip = null): array
 {
-    if ($postalCode === null) {
-        return '';
+    // Generate access token for payment processing
+    $accessToken = generatePaymentAccessToken();
+
+    // Prepare transaction request
+    $transactionData = [
+        'account_name' => $_ENV['GP_ACCOUNT_NAME'] ?? 'transaction_processing',
+        'type' => 'SALE',
+        'channel' => 'CNP',
+        'amount' => (string) round($amount * 100), // Convert to cents
+        'currency' => $currency,
+        'reference' => 'Sale-' . time(),
+        'country' => 'US',
+        'payment_method' => [
+            'entry_mode' => 'ECOM',
+            'id' => $paymentReference
+        ]
+    ];
+
+    // Add billing address if ZIP code provided
+    if ($billingZip !== null && $billingZip !== '') {
+        $transactionData['payment_method']['billing_address'] = [
+            'postal_code' => $billingZip
+        ];
     }
-    
-    $sanitized = preg_replace('/[^a-zA-Z0-9-]/', '', $postalCode);
-    return substr($sanitized, 0, 10);
+
+    // Determine API endpoint
+    $apiEndpoint = ($_ENV['GP_ENVIRONMENT'] ?? 'sandbox') === 'production'
+        ? 'https://apis.globalpay.com/ucp/transactions'
+        : 'https://apis.sandbox.globalpay.com/ucp/transactions';
+
+    // Execute transaction request
+    $ch = curl_init($apiEndpoint);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($transactionData),
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $accessToken,
+            'X-GP-Version: 2021-03-22'
+        ],
+        CURLOPT_TIMEOUT => 30
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError) {
+        throw new Exception('Transaction request failed: ' . $curlError);
+    }
+
+    $responseData = json_decode($response, true);
+
+    // Check for errors in response
+    if ($httpCode >= 400) {
+        $errorMessage = $responseData['error_description'] ?? $responseData['message'] ?? 'Transaction failed';
+        throw new Exception($errorMessage);
+    }
+
+    return $responseData;
 }
 
-// Initialize SDK configuration
-configureSdk();
-
 try {
+    // Load environment variables
+    $dotenv = Dotenv::createImmutable(__DIR__);
+    $dotenv->load();
+
+    // Validate required credentials
+    if (empty($_ENV['GP_APP_ID']) || empty($_ENV['GP_APP_KEY'])) {
+        throw new Exception('Missing required credentials: GP_APP_ID and GP_APP_KEY');
+    }
+
+    // Get JSON input
+    $inputData = json_decode(file_get_contents('php://input'), true);
+
     // Validate required fields
-    if (!isset($_POST['payment_token'], $_POST['billing_zip'], $_POST['amount'])) {
-        throw new ApiException('Missing required fields');
-    }
-    
-    // Parse and validate amount
-    $amount = floatval($_POST['amount']);
-    if ($amount <= 0) {
-        throw new ApiException('Invalid amount');
+    if (empty($inputData['payment_reference'])) {
+        throw new Exception('Missing payment reference');
     }
 
-    // Initialize payment data using tokenized card information
-    $card = new CreditCardData();
-    $card->token = $_POST['payment_token'];
+    if (empty($inputData['amount']) || floatval($inputData['amount']) <= 0) {
+        throw new Exception('Invalid amount');
+    }
 
-    // Create billing address for AVS verification
-    $address = new Address();
-    $address->postalCode = sanitizePostalCode($_POST['billing_zip']);
+    $paymentReference = $inputData['payment_reference'];
+    $amount = floatval($inputData['amount']);
+    $currency = $inputData['currency'] ?? 'USD';
+    $billingZip = $inputData['billing_zip'] ?? null;
 
-    // Process the payment transaction with specified amount
-    $response = $card->charge($amount)
-        ->withAllowDuplicates(true)
-        ->withCurrency('USD')
-        ->withAddress($address)
-        ->execute();
-    
-    // Verify transaction was successful
-    if ($response->responseCode !== '00') {
-        http_response_code(400);
+    // Process the Sale transaction
+    $transactionResponse = processSaleTransaction($paymentReference, $amount, $currency, $billingZip);
+
+    // Check transaction status
+    if ($transactionResponse['status'] === 'CAPTURED') {
         echo json_encode([
-            'success' => false,
-            'message' => 'Payment processing failed',
-            'error' => [
-                'code' => 'PAYMENT_DECLINED',
-                'details' => $response->responseMessage
+            'success' => true,
+            'message' => 'Payment successful!',
+            'data' => [
+                'transactionId' => $transactionResponse['id'],
+                'status' => $transactionResponse['status'],
+                'amount' => $amount,
+                'currency' => $currency,
+                'reference' => $transactionResponse['reference'] ?? '',
+                'timestamp' => $transactionResponse['time_created'] ?? date('Y-m-d H:i:s')
             ]
         ]);
-        exit;
+    } else {
+        throw new Exception('Transaction not captured. Status: ' . ($transactionResponse['status'] ?? 'UNKNOWN'));
     }
 
-    // Return success response with transaction ID
-    echo json_encode([
-        'success' => true,
-        'message' => 'Payment successful! Transaction ID: ' . $response->transactionId,
-        'data' => [
-            'transactionId' => $response->transactionId
-        ]
-    ]);
-} catch (ApiException $e) {
-    // Handle payment processing errors
+} catch (Exception $e) {
     http_response_code(400);
     echo json_encode([
         'success' => false,
         'message' => 'Payment processing failed',
-        'error' => [
-            'code' => 'API_ERROR',
-            'details' => $e->getMessage()
-        ]
+        'error' => $e->getMessage()
     ]);
 }

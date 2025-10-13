@@ -55,10 +55,6 @@
                     <label class="gp-label">Credit Card Information:</label>
                     <div id="credit-card-form"></div>
                 </div>
-
-                <button type="submit" class="gp-button gp-button-primary gp-button-full" id="submit-button">
-                    Process Payment
-                </button>
             </form>
 
             <!-- Result Display -->
@@ -179,20 +175,12 @@ Exp: Any future date
                     } catch (error) {
                         showResult('error', 'Payment processing error: ' + error.message);
                     }
-
-                    // Re-enable submit button
-                    document.getElementById('submit-button').disabled = false;
-                    document.getElementById('submit-button').textContent = 'Process Payment';
                 });
 
                 // Handle tokenization errors
                 cardForm.on('token-error', function(response) {
                     console.error('Token error:', response);
                     showResult('error', 'Card validation failed: ' + (response.reasons?.[0]?.message || 'Invalid card details'));
-
-                    // Re-enable submit button
-                    document.getElementById('submit-button').disabled = false;
-                    document.getElementById('submit-button').textContent = 'Process Payment';
                 });
 
                 console.log('Drop-In UI initialized successfully');
@@ -203,7 +191,7 @@ Exp: Any future date
             }
         });
 
-        // Handle form submission
+        // Handle form submission - Drop-In UI will trigger this automatically
         document.getElementById('payment-form').addEventListener('submit', function(event) {
             event.preventDefault();
 
@@ -216,10 +204,6 @@ Exp: Any future date
 
             // Update amount in card form
             cardForm.amount = amount;
-
-            // Disable submit button and show loading state
-            document.getElementById('submit-button').disabled = true;
-            document.getElementById('submit-button').textContent = 'Processing...';
 
             // Hide previous results
             document.getElementById('result-container').style.display = 'none';
