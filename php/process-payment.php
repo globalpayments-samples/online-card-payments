@@ -37,7 +37,8 @@ ini_set('display_errors', '0');
 /**
  * Generate access token for payment processing
  *
- * Creates a new access token with transaction permissions (PMT_POST_Create)
+ * Creates a new access token. Permissions are automatically assigned by the API
+ * based on the app credentials.
  *
  * @return string The access token
  * @throws Exception If token generation fails

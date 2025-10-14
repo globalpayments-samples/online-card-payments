@@ -37,12 +37,13 @@ ini_set('display_errors', '0');
 /**
  * Generate access token for payment processing
  *
- * Creates a new access token with transaction permissions (PMT_POST_Create)
+ * Creates a new access token. Permissions are automatically assigned by the API
+ * based on the app credentials.
  *
  * @return string The access token
  * @throws Exception If token generation fails
  */
-function generatePaymentAccessToken(): string
+function generatePaymentAccessToken(): array
 {
     $nonce = bin2hex(random_bytes(16));
 
@@ -52,7 +53,6 @@ function generatePaymentAccessToken(): string
         'secret' => hash('sha512', $nonce . $_ENV['GP_APP_KEY']),
         'grant_type' => 'client_credentials',
         'seconds_to_expire' => 600,
-        'interval_to_expire' => 'SECONDS',
         'permissions' => ['PMT_POST_Create']
     ];
 
@@ -69,6 +69,7 @@ function generatePaymentAccessToken(): string
             'Content-Type: application/json',
             'X-GP-Version: 2021-03-22'
         ],
+        CURLOPT_ENCODING => '', // Enable automatic decompression
         CURLOPT_TIMEOUT => 30
     ]);
 
@@ -81,14 +82,23 @@ function generatePaymentAccessToken(): string
         throw new Exception('Token generation failed: ' . $curlError);
     }
 
+    // Log raw response for debugging
+    error_log("Raw API response: " . substr($response, 0, 200));
+
     $responseData = json_decode($response, true);
 
     if ($httpCode !== 200 || empty($responseData['token'])) {
         $errorMessage = $responseData['error_description'] ?? $responseData['message'] ?? 'Failed to generate payment token';
+        // Log the full response for debugging
+        error_log("Token generation failed. HTTP Code: $httpCode, Parsed: " . json_encode($responseData));
         throw new Exception($errorMessage);
     }
 
-    return $responseData['token'];
+    // Return both token and merchant_id from scope
+    return [
+        'token' => $responseData['token'],
+        'merchant_id' => $responseData['scope']['merchant_id'] ?? null
+    ];
 }
 
 /**
@@ -103,11 +113,12 @@ function generatePaymentAccessToken(): string
 function processSaleTransaction(string $paymentReference, float $amount, string $currency = 'USD'): array
 {
     // Generate access token for payment processing
-    $accessToken = generatePaymentAccessToken();
+    $tokenData = generatePaymentAccessToken();
+    $accessToken = $tokenData['token'];
+    $merchantId = $tokenData['merchant_id'];
 
     // Prepare transaction request
     $transactionData = [
-        'account_name' => $_ENV['GP_ACCOUNT_NAME'] ?? 'transaction_processing',
         'type' => 'SALE',
         'channel' => 'CNP',
         'amount' => (string) round($amount * 100), // Convert to cents
@@ -120,10 +131,26 @@ function processSaleTransaction(string $paymentReference, float $amount, string 
         ]
     ];
 
+    // Add account_name (required by API)
+    if (!empty($_ENV['GP_ACCOUNT_NAME'])) {
+        $transactionData['account_name'] = $_ENV['GP_ACCOUNT_NAME'];
+        error_log("Using account_name: " . $_ENV['GP_ACCOUNT_NAME']);
+    } elseif (!empty($_ENV['GP_ACCOUNT_ID'])) {
+        $transactionData['account_id'] = $_ENV['GP_ACCOUNT_ID'];
+    } elseif ($merchantId) {
+        // Last resort: try merchant_id if nothing else is available
+        $transactionData['merchant_id'] = $merchantId;
+        error_log("Using merchant_id from token: $merchantId");
+    }
+
     // Determine API endpoint
     $apiEndpoint = ($_ENV['GP_ENVIRONMENT'] ?? 'sandbox') === 'production'
         ? 'https://apis.globalpay.com/ucp/transactions'
         : 'https://apis.sandbox.globalpay.com/ucp/transactions';
+
+    // Log transaction request for debugging
+    error_log("Transaction request to: $apiEndpoint");
+    error_log("Transaction data: " . json_encode($transactionData));
 
     // Execute transaction request
     $ch = curl_init($apiEndpoint);
@@ -136,6 +163,7 @@ function processSaleTransaction(string $paymentReference, float $amount, string 
             'Authorization: Bearer ' . $accessToken,
             'X-GP-Version: 2021-03-22'
         ],
+        CURLOPT_ENCODING => '', // Enable automatic decompression
         CURLOPT_TIMEOUT => 30
     ]);
 
@@ -150,9 +178,13 @@ function processSaleTransaction(string $paymentReference, float $amount, string 
 
     $responseData = json_decode($response, true);
 
+    // Log transaction response for debugging
+    error_log("Transaction API response - HTTP: $httpCode, Body: " . json_encode($responseData));
+
     // Check for errors in response
     if ($httpCode >= 400) {
         $errorMessage = $responseData['error_description'] ?? $responseData['message'] ?? 'Transaction failed';
+        error_log("Transaction failed: $errorMessage. Full response: " . json_encode($responseData));
         throw new Exception($errorMessage);
     }
 

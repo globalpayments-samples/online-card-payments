@@ -6,9 +6,9 @@ declare(strict_types=1);
  * Access Token Generation Endpoint
  *
  * This script generates a restricted, single-use access token for the Drop-In UI.
- * The token is used by the frontend to securely initialize the payment form.
+ * The token is used by the frontend to securely initialize the payment form and tokenize cards.
  *
- * The token expires after 10 minutes and has limited permissions for payment creation only.
+ * The token expires after 10 minutes and has limited permissions for payment method creation only.
  *
  * PHP version 7.4 or higher
  *
@@ -48,12 +48,14 @@ try {
     $nonce = bin2hex(random_bytes(16));
 
     // Prepare request data for access token
+    // For Drop-In UI, we need PMT_POST_Create_Single permission for card tokenization
     $requestData = [
         'app_id' => $_ENV['GP_APP_ID'],
         'nonce' => $nonce,
         'secret' => hash('sha512', $nonce . $_ENV['GP_APP_KEY']),
         'grant_type' => 'client_credentials',
-        'seconds_to_expire' => 600 // 10 minutes
+        'seconds_to_expire' => 600, // 10 minutes
+        'permissions' => ['PMT_POST_Create_Single']
     ];
 
     // Determine API endpoint based on environment
