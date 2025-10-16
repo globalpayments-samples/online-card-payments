@@ -49,6 +49,7 @@ try {
 
     // Prepare request data for access token
     // For Drop-In UI, we need PMT_POST_Create_Single permission for card tokenization
+    // This is the exact permission used in the official Global Payments sample
     $requestData = [
         'app_id' => $_ENV['GP_APP_ID'],
         'nonce' => $nonce,

@@ -5,7 +5,8 @@
         "php": ">=7.4",
         "ext-curl": "*",
         "ext-json": "*",
-        "vlucas/phpdotenv": "^5.5"
+        "vlucas/phpdotenv": "^5.5",
+        "globalpayments/php-sdk": "^13.4"
     },
     "authors": [
         {

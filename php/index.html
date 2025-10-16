@@ -141,7 +141,8 @@ Exp: Any future date
                 // Initialize Drop-In UI form
                 cardForm = GlobalPayments.creditCard.form('#credit-card-form', {
                     style: 'gp-default',
-                    amount: '10.00'
+                    amount: '10.00',
+                    enableSavedPaymentMethods: false // Disable saved payment methods to avoid permission issues
                 });
 
                 // Handle successful tokenization
@@ -151,7 +152,7 @@ Exp: Any future date
                     // Get amount from form
                     const amount = document.getElementById('amount').value;
 
-                    // Submit payment to backend
+                    // Submit payment to backend with the access token used for tokenization
                     try {
                         const paymentResponse = await fetch('process-sale.php', {
                             method: 'POST',
@@ -161,15 +162,19 @@ Exp: Any future date
                             body: JSON.stringify({
                                 payment_reference: response.paymentReference,
                                 amount: parseFloat(amount),
-                                currency: 'USD'
+                                currency: 'USD',
+                                access_token: accessToken // Pass the same token used for tokenization
                             })
                         });
 
                         const paymentData = await paymentResponse.json();
 
+                        console.log('Payment response:', paymentData);
+
                         if (paymentData.success) {
                             showResult('success', 'Payment Successful! Transaction ID: ' + paymentData.data.transactionId);
                         } else {
+                            console.error('Payment failed:', paymentData);
                             showResult('error', 'Payment Failed: ' + (paymentData.error || paymentData.message));
                         }
                     } catch (error) {
@@ -191,26 +196,8 @@ Exp: Any future date
             }
         });
 
-        // Handle form submission - Drop-In UI will trigger this automatically
-        document.getElementById('payment-form').addEventListener('submit', function(event) {
-            event.preventDefault();
-
-            // Validate amount
-            const amount = document.getElementById('amount').value;
-            if (!amount || parseFloat(amount) <= 0) {
-                showResult('error', 'Please enter a valid amount');
-                return;
-            }
-
-            // Update amount in card form
-            cardForm.amount = amount;
-
-            // Hide previous results
-            document.getElementById('result-container').style.display = 'none';
-
-            // Request tokenization (will trigger token-success or token-error event)
-            cardForm.tokenize();
-        });
+        // Note: The Drop-In UI automatically handles form submission via the SUBMIT button
+        // The cardForm.on('token-success') and cardForm.on('token-error') events handle the results
 
         // Helper function to display results
         function showResult(type, message) {
