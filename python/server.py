@@ -1,17 +1,21 @@
 """
-Global Payments SDK Template - Python Flask
+Global Payments Drop-In UI - Sale Transaction (Python)
 
-This Flask application provides a starting template for Global Payments SDK integration.
-Customize the endpoints and logic below for your specific use case.
+This Flask application implements Global Payments Drop-In UI integration
+for processing Sale transactions using the official Python SDK.
 """
 
 import os
-import re
-from flask import Flask, request, jsonify
+import hashlib
+import secrets
+import requests
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
 from dotenv import load_dotenv
-from globalpayments.api import PorticoConfig, ServicesContainer
+from globalpayments.api import ServicesContainer
+from globalpayments.api.services_config import GpApiConfig
 from globalpayments.api.payment_methods import CreditCardData
-from globalpayments.api.entities import Address
+from globalpayments.api.entities.enums import Channel, Environment
 from globalpayments.api.entities.exceptions import ApiException
 
 # Load environment variables
@@ -19,91 +23,127 @@ load_dotenv()
 
 # Initialize application
 app = Flask(__name__, static_folder='.')
-
-def configure_sdk():
-    """
-    Configure the Global Payments SDK with necessary credentials and settings.
-    Customize these settings for your environment.
-    """
-    config = PorticoConfig()
-    config.secret_api_key = os.getenv('SECRET_API_KEY')
-    config.service_url = 'https://cert.api2.heartlandportico.com'  # Use production URL for live transactions
-    config.developer_id = '000000'  # Your developer ID
-    config.version_number = '0000'  # Your version number
-    
-    ServicesContainer.configure(config)
-
-# Configure SDK on startup
-configure_sdk()
-
-def sanitize_postal_code(postal_code: str) -> str:
-    """
-    Utility function to sanitize postal code.
-    Customize validation logic as needed for your use case.
-    """
-    sanitized = re.sub(r'[^a-zA-Z0-9-]', '', postal_code or '')
-    return sanitized[:10]
+CORS(app)  # Enable CORS for development
 
 @app.route('/')
 def index():
     """Serve the main HTML page."""
-    return app.send_static_file('index.html')
+    return send_from_directory('.', 'index.html')
 
-@app.route('/config')
-def get_config():
+@app.route('/get-access-token', methods=['POST'])
+def get_access_token():
     """
-    Config endpoint - provides public API key for client-side use.
-    Customize response data as needed.
-    """
-    return jsonify({
-        'success': True,
-        'data': {
-            'publicApiKey': os.getenv('PUBLIC_API_KEY')
-            # Add other configuration data as needed
-        }
-    })
-
-@app.route('/process-payment', methods=['POST'])
-def process_payment():
-    """
-    Example payment processing endpoint.
-    Customize this endpoint for your specific payment flow.
+    Generate access token for Drop-In UI (tokenization)
+    Uses PMT_POST_Create_Single permission for card tokenization
     """
     try:
-        # TODO: Add your payment processing logic here
-        # Example implementation for basic charge:
-        
-        if 'payment_token' not in request.form:
-            raise ApiException('Payment token is required')
+        # Generate nonce and secret
+        nonce = secrets.token_hex(16)
+        secret_string = nonce + os.getenv('GP_APP_KEY')
+        secret = hashlib.sha512(secret_string.encode()).hexdigest()
 
-        card = CreditCardData()
-        card.token = request.form['payment_token']
+        # Build token request
+        token_request = {
+            'app_id': os.getenv('GP_APP_ID'),
+            'nonce': nonce,
+            'secret': secret,
+            'grant_type': 'client_credentials',
+            'seconds_to_expire': 600,
+            'permissions': ['PMT_POST_Create_Single']
+        }
 
-        # Customize amount and other parameters as needed
-        amount = float(request.form.get('amount', 10.00))
+        # Determine API endpoint
+        api_endpoint = 'https://apis.globalpay.com/ucp/accesstoken' if os.getenv('GP_ENVIRONMENT') == 'production' \
+            else 'https://apis.sandbox.globalpay.com/ucp/accesstoken'
 
-        # Add billing address if needed
-        if 'billing_zip' in request.form:
-            address = Address()
-            address.postal_code = sanitize_postal_code(request.form['billing_zip'])
-            
-            response = card.charge(amount)\
-                .with_allow_duplicates(True)\
-                .with_currency('USD')\
-                .with_address(address)\
-                .execute()
-        else:
-            # Process without address
-            response = card.charge(amount)\
-                .with_allow_duplicates(True)\
-                .with_currency('USD')\
-                .execute()
+        # Make API request
+        response = requests.post(
+            api_endpoint,
+            json=token_request,
+            headers={
+                'Content-Type': 'application/json',
+                'X-GP-Version': '2021-03-22'
+            }
+        )
+
+        data = response.json()
+
+        if not response.ok or 'token' not in data:
+            raise Exception(data.get('error_description', 'Failed to generate access token'))
 
         return jsonify({
             'success': True,
-            'message': 'Payment processed successfully',
-            'data': {'transactionId': response.transaction_id}
+            'token': data['token'],
+            'expiresIn': data.get('seconds_to_expire', 600)
         })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': 'Error generating access token',
+            'error': str(e)
+        }), 500
+
+@app.route('/process-sale', methods=['POST'])
+def process_sale():
+    """
+    Process Sale transaction using Global Payments SDK
+    Uses the payment reference from Drop-In UI to process the charge
+    """
+    try:
+        # Get JSON data
+        data = request.get_json()
+
+        # Validate input
+        if not data or 'payment_reference' not in data:
+            raise ValueError('Missing payment reference')
+
+        if 'amount' not in data or float(data['amount']) <= 0:
+            raise ValueError('Invalid amount')
+
+        payment_reference = data['payment_reference']
+        amount = float(data['amount'])
+        currency = data.get('currency', 'USD')
+
+        # Configure Global Payments SDK
+        config = GpApiConfig()
+        config.app_id = os.getenv('GP_APP_ID')
+        config.app_key = os.getenv('GP_APP_KEY')
+        config.environment = Environment.PRODUCTION if os.getenv('GP_ENVIRONMENT') == 'production' \
+            else Environment.TEST
+        config.channel = Channel.CardNotPresent
+        config.country = 'US'
+
+        # Note: Don't set account name - let SDK auto-detect
+
+        # Configure the service
+        ServicesContainer.configure(config)
+
+        # Create card data from payment reference token
+        card = CreditCardData()
+        card.token = payment_reference
+
+        # Process the charge
+        response = card.charge(amount) \
+            .with_currency(currency) \
+            .execute()
+
+        # Check response
+        if response.response_code in ['00', 'SUCCESS']:
+            return jsonify({
+                'success': True,
+                'message': 'Payment successful!',
+                'data': {
+                    'transactionId': response.transaction_id,
+                    'status': response.response_message,
+                    'amount': amount,
+                    'currency': currency,
+                    'reference': response.reference_number or '',
+                    'timestamp': response.timestamp or ''
+                }
+            })
+        else:
+            raise Exception(f"Transaction declined: {response.response_message or 'Unknown error'}")
 
     except ApiException as e:
         return jsonify({
@@ -116,33 +156,11 @@ def process_payment():
             'success': False,
             'message': 'Payment processing failed',
             'error': str(e)
-        }), 500
+        }), 400
 
-# Add your custom endpoints here
-# Examples:
-# @app.route('/authorize', methods=['POST'])
-# def authorize_payment():
-#     # Authorization only logic
-#     pass
-#
-# @app.route('/capture', methods=['POST'])  
-# def capture_payment():
-#     # Capture authorized payment logic
-#     pass
-#
-# @app.route('/refund', methods=['POST'])
-# def refund_payment():
-#     # Process refund logic
-#     pass
-#
-# @app.route('/transaction/<transaction_id>')
-# def get_transaction(transaction_id):
-#     # Get transaction details logic
-#     pass
-
-# Start the server if this file is run directly
+# Start server
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 8000))
-    print(f"Server running at http://localhost:{port}")
-    print("Customize this template for your use case!")
+    print(f'✅ Server running at http://localhost:{port}')
+    print(f"Environment: {os.getenv('GP_ENVIRONMENT', 'sandbox')}")
     app.run(host='0.0.0.0', port=port, debug=True)
