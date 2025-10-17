@@ -123,7 +123,7 @@
         document.addEventListener('DOMContentLoaded', async function() {
             try {
                 // Fetch access token from backend
-                const tokenResponse = await fetch('get-access-token.php', {
+                const tokenResponse = await fetch('/get-access-token', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -161,7 +161,7 @@
 
                     // Submit payment to backend with the access token used for tokenization
                     try {
-                        const paymentResponse = await fetch('process-sale.php', {
+                        const paymentResponse = await fetch('/process-sale', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
@@ -170,7 +170,7 @@
                                 payment_reference: response.paymentReference,
                                 amount: parseFloat(amount),
                                 currency: 'USD',
-                                access_token: accessToken // Pass the same token used for tokenization
+                                
                             })
                         });
 
