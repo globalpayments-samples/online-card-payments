@@ -1,100 +1,360 @@
-# Global Payments SDK Starter Template
+# Global Payments Drop-In UI - Sale Transaction (Multi-Language)
 
-This starter template provides a customizable foundation for Global Payments SDK integration across multiple programming languages. Each implementation includes basic SDK setup, configuration management, and placeholder endpoints that you can modify for your specific payment use cases.
+Complete implementation of Global Payments Drop-In UI for processing Sale transactions using the official SDKs across 6 programming languages. All implementations follow the same architecture and use modern GP-API with GpApiConfig.
 
-## Available Implementations
+## 🚀 Available Implementations
 
-- [.NET Core](./dotnet/) - ASP.NET Core web application
-- [Go](./go/) - Go HTTP server application
-- [Java](./java/) - Jakarta EE servlet-based web application
-- [Node.js](./nodejs/) - Express.js web application
-- [PHP](./php/) - PHP web application
-- [Python](./python/) - Flask web application
+| Language | Framework | SDK Version | Port | Status |
+|----------|-----------|-------------|------|--------|
+| [**PHP**](./php/) | Built-in Server | v13.4+ | 8000 | ✅ Complete |
+| [**Node.js**](./nodejs/) | Express.js | v3.10.6+ | 8000 | ✅ Complete |
+| [**Python**](./python/) | Flask | v2.0.4+ | 8000 | ✅ Complete |
+| [**Go**](./go/) | Native HTTP | v1.1.3 | 8000 | ✅ Complete |
+| [**Java**](./java/) | Jakarta Servlet | v14.2.20 | 8000 | ✅ Complete |
+| [**.NET**](./dotnet/) | ASP.NET Core | v9.0.16 | 8000 | ✅ Complete |
 
-## Template Features
+## 🏗️ Architecture
 
-- **SDK Configuration** - Basic setup with environment variables
-- **Placeholder Endpoints** - Ready-to-customize API endpoints  
-- **Error Handling** - Basic error handling structure
-- **Client Integration** - HTML form with hosted fields tokenization
-- **Multiple Languages** - Consistent structure across all implementations
+All implementations use the **same architecture**:
 
-## Customization Options
+### Two-Token System
+1. **Tokenization Token** - Generated server-side with `PMT_POST_Create_Single` permission for Drop-In UI
+2. **Transaction Token** - SDK-generated automatically during transaction processing
 
-Each template includes:
+### Two API Endpoints
+1. **POST /get-access-token** - Generates access token for Drop-In UI initialization
+2. **POST /process-sale** - Processes Sale transaction using payment reference from Drop-In UI
 
-1. **Basic SDK Setup**
-   - Environment variable configuration
-   - Service URL configuration
-   - API key management
-
-2. **Starter Endpoints**
-   - GET `/config` - Configuration endpoint
-   - POST `/process-payment` - Payment processing template
-   - Commented examples for additional endpoints (authorize, capture, refund, etc.)
-
-3. **Ready-to-Modify Structure**
-   - TODO comments for customization points
-   - Example payment logic you can adapt
-   - Placeholder functions for various payment flows
-
-## Quick Start
-
-1. **Copy the template** - Copy this directory to start your new project
-2. **Choose your language** - Navigate to any implementation directory (nodejs, python, php, java, dotnet, go)
-3. **Set up credentials** - Copy `.env.sample` to `.env` and add your Global Payments API keys
-4. **Run the server** - Execute `./run.sh` to install dependencies and start the server
-5. **Customize** - Modify the code for your specific payment use case
-
-## Use Cases You Can Build
-
-This template can be adapted for various payment scenarios:
-
-- **Basic Charges** - Simple one-time payments
-- **Authorization/Capture** - Two-step payment processing
-- **Subscriptions** - Recurring payment processing
-- **Refunds** - Payment reversal functionality
-- **Multi-step Checkouts** - Complex payment flows
-- **Payment Methods** - Credit cards, ACH, alternative payments
-
-## Prerequisites
-
-- Global Payments account with API credentials
-- Development environment for your chosen language
-- Package manager (npm, pip, composer, maven, dotnet, go mod)
-
-## Customization Guide
-
-### Adding New Endpoints
-
-Each implementation includes commented examples for common payment operations:
-
-```javascript
-// Authorization only
-app.post('/authorize', ...)
-
-// Capture authorized payment  
-app.post('/capture', ...)
-
-// Process refund
-app.post('/refund', ...)
-
-// Get transaction details
-app.get('/transaction/:id', ...)
+### Payment Flow
+```
+Browser → /get-access-token → GP API (Tokenization Token)
+   ↓
+Drop-In UI (Card Tokenization - PCI Compliant)
+   ↓
+Browser → /process-sale → SDK → GP API (Sale Transaction)
+   ↓
+Success/Error Response
 ```
 
-### Modifying Payment Logic
+## ⚡ Quick Start
 
-1. Update the `/process-payment` endpoint for your specific flow
-2. Add validation for your required fields
-3. Customize error handling and responses
-4. Add logging and monitoring as needed
+### 1. Choose Your Language
 
-### Production Considerations
+```bash
+cd php        # or nodejs, python, go, java, dotnet
+```
 
-Enhance the template for production use with:
-- Input validation and sanitization
-- Comprehensive error handling and logging
-- Security headers and rate limiting
-- PCI compliance measures
-- Monitoring and alerting
+### 2. Configure Credentials
+
+```bash
+# Copy environment template
+cp .env.sample .env
+
+# Edit .env with your credentials
+GP_APP_ID=your_app_id_here
+GP_APP_KEY=your_app_key_here
+GP_ENVIRONMENT=sandbox
+```
+
+### 3. Install & Run
+
+**PHP:**
+```bash
+composer install
+php -S localhost:8000
+```
+
+**Node.js:**
+```bash
+npm install
+npm start
+```
+
+**Python:**
+```bash
+pip install -r requirements.txt
+python server.py
+```
+
+**Go:**
+```bash
+go mod download
+go run main.go
+```
+
+**Java:**
+```bash
+mvn clean package
+mvn cargo:run
+```
+
+**.NET:**
+```bash
+dotnet restore
+dotnet run
+```
+
+### 4. Test Payment
+
+1. Open http://localhost:8000
+2. Enter amount (e.g., 10.00)
+3. Use test card: **4263 9826 4026 9299**
+4. CVV: **123**, Expiry: Any future date
+5. Click **SUBMIT**
+6. Verify success with transaction ID
+
+## 🧪 Test Cards (Sandbox)
+
+| Brand | Card Number | CVV | Expiry |
+|-------|-------------|-----|--------|
+| Visa | 4263 9826 4026 9299 | 123 | Any future |
+| Visa | 4263 9700 0000 5262 | 123 | Any future |
+| Mastercard | 5425 2334 2424 1200 | 123 | Any future |
+| Discover | 6011 0000 0000 0012 | 123 | Any future |
+
+More test cards: [Global Payments Test Cards](https://developer.globalpay.com/resources/test-cards)
+
+## 🔧 Configuration
+
+All implementations use the same environment variables:
+
+```env
+# Required
+GP_APP_ID=your_app_id_here          # From developer dashboard
+GP_APP_KEY=your_app_key_here        # From developer dashboard
+
+# Optional
+GP_ENVIRONMENT=sandbox              # sandbox or production
+
+# Not Recommended (SDK auto-detects)
+# GP_ACCOUNT_NAME=Transaction_Processing
+```
+
+### ⚠️ Important Configuration Notes
+
+1. **Do NOT manually set `GP_ACCOUNT_NAME`** - The SDK automatically detects the correct account from your `APP_ID`/`APP_KEY`
+2. Manually setting the account name can cause "Access token and merchant info do not match" errors
+3. Let the SDK handle account selection for best compatibility
+
+## 🎨 Features
+
+### Consistent Across All Languages
+
+- ✅ **Modern GP-API** - Uses GpApiConfig (not legacy Portico)
+- ✅ **Drop-In UI** - Pre-built payment form from Global Payments
+- ✅ **PCI SAQ A Compliant** - Card data never touches your server
+- ✅ **Two-Token Architecture** - Secure tokenization + transaction flow
+- ✅ **Auto-Configuration** - SDK auto-detects account settings
+- ✅ **Centered UI** - Professional, responsive design
+- ✅ **Error Handling** - Comprehensive error handling
+- ✅ **Test Cards Link** - Elegant button to test cards documentation
+
+### Security
+
+- 🔒 SHA-512 hashing for token generation
+- 🔒 Environment variables for credentials (not in code)
+- 🔒 Drop-In UI handles card input (PCI compliant)
+- 🔒 Token-based authentication
+- 🔒 HTTPS ready for production
+
+## 📁 Project Structure
+
+Each language implementation follows this structure:
+
+```
+language/
+├── server file          # Main application file
+├── index.html          # Drop-In UI frontend (or in static/webapp/wwwroot)
+├── .env                # Credentials (not tracked in git)
+├── .env.sample         # Configuration template
+├── README.md           # Language-specific documentation
+└── dependencies file   # package.json, requirements.txt, pom.xml, etc.
+```
+
+### Implementation Files
+
+| Language | Server File | HTML Location | Config File |
+|----------|------------|---------------|-------------|
+| PHP | `get-access-token.php`, `process-sale.php` | `index.html` | `composer.json` |
+| Node.js | `server.js` | `index.html` | `package.json` |
+| Python | `server.py` | `index.html` | `requirements.txt` |
+| Go | `main.go` | `static/index.html` | `go.mod` |
+| Java | `ProcessPaymentServlet.java` | `src/main/webapp/index.html` | `pom.xml` |
+| .NET | `Program.cs` | `wwwroot/index.html` | `dotnet.csproj` |
+
+## 🔍 Technical Details
+
+### Endpoint Implementation
+
+**Get Access Token:**
+```
+POST /get-access-token
+Response: { "success": true, "token": "...", "expiresIn": 600 }
+```
+
+**Process Sale:**
+```
+POST /process-sale
+Body: { "payment_reference": "PMT_...", "amount": 10.00, "currency": "USD" }
+Response: { "success": true, "message": "Payment successful!", "data": {...} }
+```
+
+### SDK Configuration Pattern
+
+All implementations use this pattern:
+
+```javascript
+// Conceptual example
+config = new GpApiConfig()
+config.appId = GP_APP_ID
+config.appKey = GP_APP_KEY
+config.environment = GP_ENVIRONMENT
+config.channel = CardNotPresent
+config.country = "US"
+// Note: Don't set account name - SDK auto-detects
+
+ServicesContainer.configure(config)
+```
+
+## 🚀 Production Deployment
+
+### 1. Update Configuration
+
+```env
+GP_ENVIRONMENT=production
+```
+
+### 2. Update Frontend
+
+In `index.html`, change Drop-In UI environment:
+
+```javascript
+GlobalPayments.configure({
+  accessToken: accessToken,
+  apiVersion: '2021-03-22',
+  env: 'production'  // Change from 'sandbox'
+});
+```
+
+### 3. Security Checklist
+
+- [ ] Use production credentials
+- [ ] Enable HTTPS/SSL
+- [ ] Configure CORS for your domain
+- [ ] Set up rate limiting
+- [ ] Enable logging and monitoring
+- [ ] Review error handling (don't expose sensitive details)
+- [ ] Test with production credentials in sandbox first
+- [ ] Use production web server (not development server)
+
+### 4. Server Recommendations
+
+- **PHP:** Use Apache/Nginx with PHP-FPM
+- **Node.js:** Use PM2 or similar process manager
+- **Python:** Use Gunicorn with multiple workers
+- **Go:** Deploy compiled binary with systemd
+- **Java:** Use Tomcat or similar servlet container
+- **.NET:** Use Kestrel behind reverse proxy (Nginx/IIS)
+
+## 📖 Documentation
+
+### Per-Language READMEs
+
+Each implementation has its own detailed README:
+
+- [PHP README](./php/README.md) - Comprehensive PHP documentation
+- [Node.js README](./nodejs/README.md) - Node.js specific guide
+- [Python README](./python/README.md) - Python/Flask documentation
+- [Go README](./go/README.md) - Go implementation guide
+- [Java README](./java/README.md) - Java/Maven documentation
+- [.NET README](./dotnet/README.md) - .NET Core guide
+
+### External Resources
+
+- [Global Payments Documentation](https://developer.globalpay.com/)
+- [Drop-In UI Guide](https://developer.globalpay.com/docs/payments/online/drop-in-ui-guide)
+- [GP-API Reference](https://developer.globalpay.com/api)
+- [Test Cards](https://developer.globalpay.com/resources/test-cards)
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**"Access token and merchant info do not match"**
+- **Solution:** Comment out `GP_ACCOUNT_NAME` in `.env` file. Let SDK auto-detect.
+
+**"Failed to generate access token"**
+- **Solution:** Verify `GP_APP_ID` and `GP_APP_KEY` are correct in `.env` file.
+
+**Drop-In UI not loading**
+- **Solution:** Check browser console for errors. Verify access token is generated successfully.
+
+**Transaction declined**
+- **Solution:** Ensure using test cards in sandbox. Verify amount > 0.
+
+**Server won't start**
+- **Solution:** Check if port 8000 is already in use. Verify dependencies are installed.
+
+### Getting Help
+
+1. Check language-specific README for detailed troubleshooting
+2. Review [Global Payments Documentation](https://developer.globalpay.com/)
+3. Check [GitHub Issues](https://github.com/globalpayments)
+
+## 🔄 Migration from Legacy Portico
+
+This project uses modern **GP-API** with **GpApiConfig** (not legacy Portico/Heartland API).
+
+### Key Differences
+
+| Legacy (Portico) | Modern (GP-API) |
+|------------------|-----------------|
+| PorticoConfig | GpApiConfig |
+| SECRET_API_KEY | GP_APP_ID + GP_APP_KEY |
+| Manual account config | Auto-detection |
+| Basic forms | Drop-In UI |
+
+If migrating from Portico, see the commit history on the `rewriting-implementations` branch for migration patterns.
+
+## 📊 Project Stats
+
+- **6 Languages:** PHP, Node.js, Python, Go, Java, .NET
+- **100% Feature Parity:** All implementations identical
+- **PCI Compliant:** SAQ A level compliance
+- **Production Ready:** Comprehensive error handling
+- **Well Documented:** Complete READMEs for each language
+
+## 📄 License
+
+MIT License
+
+## 🙋 Contributing
+
+Each language implementation follows the same architecture. When contributing:
+
+1. Maintain consistency across all languages
+2. Update all language implementations for feature additions
+3. Keep .env.sample files identical
+4. Ensure Drop-In UI integration remains consistent
+5. Test with sandbox credentials before committing
+
+## 🎯 Roadmap
+
+Potential future enhancements:
+
+- [ ] Authorization (pre-auth) transactions
+- [ ] Refund processing
+- [ ] Recurring payments/subscriptions
+- [ ] Multi-currency support
+- [ ] Webhook handling for payment notifications
+- [ ] Payment method management (save cards)
+
+## ⭐ Acknowledgments
+
+Built with official Global Payments SDKs:
+- [PHP SDK](https://github.com/globalpayments/php-sdk)
+- [Node.js SDK](https://github.com/globalpayments/node-sdk)
+- [Python SDK](https://github.com/globalpayments/python-sdk)
+- [Go SDK](https://github.com/globalpayments/go-sdk)
+- [Java SDK](https://github.com/globalpayments/java-sdk)
+- [.NET SDK](https://github.com/globalpayments/dotnet-sdk)
