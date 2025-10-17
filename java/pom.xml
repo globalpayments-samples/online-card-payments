@@ -37,6 +37,13 @@
             <version>5.0.0</version>
             <scope>provided</scope>
         </dependency>
+
+        <!-- JSON Library -->
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20231013</version>
+        </dependency>
     </dependencies>
 
     <build>

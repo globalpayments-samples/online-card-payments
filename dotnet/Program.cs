@@ -1,16 +1,19 @@
 using GlobalPayments.Api;
 using GlobalPayments.Api.Entities;
 using GlobalPayments.Api.PaymentMethods;
+using GlobalPayments.Api.Services;
 using dotenv.net;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace CardPaymentSample;
 
 /// <summary>
-/// Card Payment Processing Application
-/// 
-/// This application demonstrates card payment processing using the Global Payments SDK.
-/// It provides endpoints for configuration and payment processing, handling tokenized
-/// card data to ensure secure payment processing.
+/// Global Payments Drop-In UI - Sale Transaction (.NET)
+///
+/// This application implements Global Payments Drop-In UI integration
+/// for processing Sale transactions using the official .NET SDK.
 /// </summary>
 public class Program
 {
@@ -20,171 +23,211 @@ public class Program
         DotEnv.Load();
 
         var builder = WebApplication.CreateBuilder(args);
-        
+
         var app = builder.Build();
 
         // Configure static file serving for the payment form
         app.UseDefaultFiles();
         app.UseStaticFiles();
-        
-        // Configure the SDK on startup
-        ConfigureGlobalPaymentsSDK();
 
         ConfigureEndpoints(app);
-        
+
         var port = System.Environment.GetEnvironmentVariable("PORT") ?? "8000";
         app.Urls.Add($"http://0.0.0.0:{port}");
-        
+
+        Console.WriteLine($"✅ Server running at http://localhost:{port}");
+        Console.WriteLine($"Environment: {System.Environment.GetEnvironmentVariable("GP_ENVIRONMENT") ?? "sandbox"}");
+
         app.Run();
     }
 
     /// <summary>
-    /// Configures the Global Payments SDK with necessary credentials and settings.
-    /// This must be called before processing any payments.
+    /// Generates a random nonce for access token request
     /// </summary>
-    private static void ConfigureGlobalPaymentsSDK()
+    private static string GenerateNonce()
     {
-        ServicesContainer.ConfigureService(new PorticoConfig
+        var bytes = new byte[16];
+        using (var rng = RandomNumberGenerator.Create())
         {
-            SecretApiKey = System.Environment.GetEnvironmentVariable("SECRET_API_KEY"),
-            DeveloperId = "000000",
-            VersionNumber = "0000",
-            ServiceUrl = "https://cert.api2.heartlandportico.com"
-        });
+            rng.GetBytes(bytes);
+        }
+        return BitConverter.ToString(bytes).Replace("-", "").ToLower();
     }
 
     /// <summary>
-    /// Configures the application's HTTP endpoints for payment processing.
+    /// Creates SHA-512 hash of nonce + appKey
     /// </summary>
-    /// <param name="app">The web application to configure</param>
+    private static string HashSecret(string nonce, string appKey)
+    {
+        using (var sha512 = SHA512.Create())
+        {
+            var bytes = Encoding.UTF8.GetBytes(nonce + appKey);
+            var hash = sha512.ComputeHash(bytes);
+            return BitConverter.ToString(hash).Replace("-", "").ToLower();
+        }
+    }
+
+    /// <summary>
+    /// Configures the application's HTTP endpoints
+    /// </summary>
     private static void ConfigureEndpoints(WebApplication app)
     {
-        // Configure HTTP endpoints
-        app.MapGet("/config", () => Results.Ok(new
-        { 
-            success = true,
-            data = new {
-                publicApiKey = System.Environment.GetEnvironmentVariable("PUBLIC_API_KEY")
-            }
-        }));
-
-        ConfigurePaymentEndpoint(app);
-    }
-
-    /// <summary>
-    /// Sanitizes postal code input by removing invalid characters.
-    /// </summary>
-    /// <param name="postalCode">The postal code to sanitize. Can be null.</param>
-    /// <returns>
-    /// A sanitized postal code containing only alphanumeric characters and hyphens,
-    /// limited to 10 characters. Returns empty string if input is null or empty.
-    /// </returns>
-    private static string SanitizePostalCode(string postalCode)
-    {
-        if (string.IsNullOrEmpty(postalCode)) return string.Empty;
-        
-        // Remove any characters that aren't alphanumeric or hyphen
-        var sanitized = new string(postalCode.Where(c => char.IsLetterOrDigit(c) || c == '-').ToArray());
-        
-        // Limit length to 10 characters
-        return sanitized.Length > 10 ? sanitized[..10] : sanitized;
-    }
-
-    /// <summary>
-    /// Configures the payment processing endpoint that handles card transactions.
-    /// </summary>
-    /// <param name="app">The web application to configure</param>
-    private static void ConfigurePaymentEndpoint(WebApplication app)
-    {
-        app.MapPost("/process-payment", async (HttpContext context) =>
+        // Endpoint for generating access token for Drop-In UI
+        app.MapPost("/get-access-token", async (HttpContext context) =>
         {
-            // Parse form data from the request
-            var form = await context.Request.ReadFormAsync();
-            var billingZip = form["billing_zip"].ToString();
-            var token = form["payment_token"].ToString();
-            var amountStr = form["amount"].ToString();
-
-            // Validate required fields are present
-            if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(billingZip) || string.IsNullOrEmpty(amountStr))
-            {
-                return Results.BadRequest(new {
-                    success = false,
-                    message = "Payment processing failed",
-                    error = new {
-                        code = "VALIDATION_ERROR",
-                        details = "Missing required fields"
-                    }
-                });
-            }
-
-            // Validate and parse amount
-            if (!decimal.TryParse(amountStr, out var amount) || amount <= 0)
-            {
-                return Results.BadRequest(new {
-                    success = false,
-                    message = "Payment processing failed",
-                    error = new {
-                        code = "VALIDATION_ERROR",
-                        details = "Amount must be a positive number"
-                    }
-                });
-            }
-
-            // Initialize payment data using tokenized card information
-            var card = new CreditCardData
-            {
-                Token = token
-            };
-
-            // Create billing address for AVS verification
-            var address = new Address
-            {
-                PostalCode = SanitizePostalCode(billingZip)
-            };
-
             try
             {
-                // Process the payment transaction using the provided amount
-                var response = card.Charge(amount)
-                    .WithAllowDuplicates(true)
-                    .WithCurrency("USD")
-                    .WithAddress(address)
-                    .Execute();
+                // Generate nonce and secret
+                var nonce = GenerateNonce();
+                var secret = HashSecret(nonce, System.Environment.GetEnvironmentVariable("GP_APP_KEY") ?? "");
 
-                // Verify transaction was successful
-                if (response.ResponseCode != "00")
+                // Build token request
+                var tokenRequest = new
                 {
-                    return Results.BadRequest(new {
-                        success = false,
-                        message = "Payment processing failed",
-                        error = new {
-                            code = "PAYMENT_DECLINED",
-                            details = response.ResponseMessage
-                        }
-                    });
+                    app_id = System.Environment.GetEnvironmentVariable("GP_APP_ID"),
+                    nonce = nonce,
+                    secret = secret,
+                    grant_type = "client_credentials",
+                    seconds_to_expire = 600,
+                    permissions = new[] { "PMT_POST_Create_Single" }
+                };
+
+                // Determine API endpoint
+                var apiEndpoint = "production".Equals(System.Environment.GetEnvironmentVariable("GP_ENVIRONMENT"))
+                    ? "https://apis.globalpay.com/ucp/accesstoken"
+                    : "https://apis.sandbox.globalpay.com/ucp/accesstoken";
+
+                // Make API request
+                using var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Add("X-GP-Version", "2021-03-22");
+
+                var jsonContent = JsonSerializer.Serialize(tokenRequest);
+                var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+
+                var response = await httpClient.PostAsync(apiEndpoint, content);
+                var responseBody = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new Exception($"Failed to generate access token: {responseBody}");
                 }
 
-                // Return success response with transaction ID
+                // Parse response
+                var tokenResponse = JsonSerializer.Deserialize<JsonElement>(responseBody);
+                var token = tokenResponse.GetProperty("token").GetString();
+                var expiresIn = tokenResponse.TryGetProperty("seconds_to_expire", out var exp) ? exp.GetInt32() : 600;
+
                 return Results.Ok(new
                 {
                     success = true,
-                    message = $"Payment successful! Transaction ID: {response.TransactionId}",
-                    data = new {
-                        transactionId = response.TransactionId
-                    }
+                    token = token,
+                    expiresIn = expiresIn
                 });
-            } 
+            }
+            catch (Exception ex)
+            {
+                return Results.Json(new
+                {
+                    success = false,
+                    message = "Error generating access token",
+                    error = ex.Message
+                }, statusCode: 500);
+            }
+        });
+
+        // Endpoint for processing sale transactions
+        app.MapPost("/process-sale", async (HttpContext context) =>
+        {
+            try
+            {
+                // Read JSON request body
+                var jsonBody = await JsonSerializer.DeserializeAsync<JsonElement>(context.Request.Body);
+
+                // Validate input
+                if (!jsonBody.TryGetProperty("payment_reference", out var paymentRefElement))
+                {
+                    throw new Exception("Missing payment reference");
+                }
+
+                if (!jsonBody.TryGetProperty("amount", out var amountElement) ||
+                    !amountElement.TryGetDecimal(out var amount) || amount <= 0)
+                {
+                    throw new Exception("Invalid amount");
+                }
+
+                var paymentReference = paymentRefElement.GetString() ?? "";
+                var currency = jsonBody.TryGetProperty("currency", out var currElement)
+                    ? currElement.GetString() ?? "USD"
+                    : "USD";
+
+                // Configure Global Payments SDK
+                var config = new GpApiConfig
+                {
+                    AppId = System.Environment.GetEnvironmentVariable("GP_APP_ID"),
+                    AppKey = System.Environment.GetEnvironmentVariable("GP_APP_KEY"),
+                    Environment = "production".Equals(System.Environment.GetEnvironmentVariable("GP_ENVIRONMENT"))
+                        ? GlobalPayments.Api.Entities.Environment.PRODUCTION
+                        : GlobalPayments.Api.Entities.Environment.TEST,
+                    Channel = GlobalPayments.Api.Entities.Channel.CardNotPresent,
+                    Country = "US"
+                };
+
+                // Note: Don't set AccountName - let SDK auto-detect
+
+                // Configure the service
+                ServicesContainer.ConfigureService(config);
+
+                // Create card data from payment reference token
+                var card = new CreditCardData
+                {
+                    Token = paymentReference
+                };
+
+                // Process the charge
+                var transaction = card.Charge(amount)
+                    .WithCurrency(currency)
+                    .Execute();
+
+                // Check response
+                if (transaction.ResponseCode == "00" || transaction.ResponseCode == "SUCCESS")
+                {
+                    return Results.Ok(new
+                    {
+                        success = true,
+                        message = "Payment successful!",
+                        data = new
+                        {
+                            transactionId = transaction.TransactionId,
+                            status = transaction.ResponseMessage,
+                            amount = amount.ToString(),
+                            currency = currency,
+                            reference = transaction.ReferenceNumber ?? "",
+                            timestamp = DateTime.UtcNow.ToString("o")
+                        }
+                    });
+                }
+                else
+                {
+                    throw new Exception($"Transaction declined: {transaction.ResponseMessage}");
+                }
+            }
             catch (ApiException ex)
             {
-                // Handle payment processing errors
-                return Results.BadRequest(new {
+                return Results.Json(new
+                {
                     success = false,
                     message = "Payment processing failed",
-                    error = new {
-                        code = "API_ERROR",
-                        details = ex.Message
-                    }
-                });
+                    error = ex.Message
+                }, statusCode: 400);
+            }
+            catch (Exception ex)
+            {
+                return Results.Json(new
+                {
+                    success = false,
+                    message = "Payment processing failed",
+                    error = ex.Message
+                }, statusCode: 400);
             }
         });
     }
