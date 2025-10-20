@@ -10,6 +10,15 @@
     <link rel="stylesheet" href="https://globalpayments-samples.github.io/css/styles.css">
     <!-- Global Payments Drop-In UI Library -->
     <script src="https://js.globalpay.com/4.1.11/globalpayments.js"></script>
+    <style>
+        .credit-card-card-expiration,
+        .credit-card-card-cvv {
+            margin: 0 !important;
+        }
+        .test-cards-link:hover {
+            background: #0052a3 !important;
+        }
+    </style>
 </head>
 <body>
     <!-- Header -->
@@ -51,6 +60,52 @@
                     <input type="number" id="amount" name="amount" class="gp-input" min="0.01" step="0.01" value="10.00" required>
                 </div>
 
+                <!-- Test Card Helper -->
+                <div class="gp-form-group" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <label for="test-card-select" class="gp-label" style="margin-bottom: 0;">
+                            🧪 Use Test Card for Sandbox:
+                        </label>
+                        <a href="https://developer.globalpay.com/resources/test-cards"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="test-cards-link"
+                           style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #0066cc; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 500; transition: background 0.2s ease;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                                <polyline points="15 3 21 3 21 9"/>
+                                <line x1="10" y1="14" x2="21" y2="3"/>
+                            </svg>
+                            More Test Cards
+                        </a>
+                    </div>
+                    <select id="test-card-select" class="gp-select">
+                        <option value="">Select a test card...</option>
+                        <option value="visa">Visa - 4263970000005262</option>
+                        <option value="mastercard">MasterCard - 5425230000004415</option>
+                        <option value="discover">Discover - 6011000000000087</option>
+                        <option value="amex">American Express - 374101000000608</option>
+                        <option value="jcb">JCB - 3566000000000000</option>
+                        <option value="diners">Diners Club - 36256000000725</option>
+                    </select>
+                    <small style="color: #6c757d; font-size: 12px; margin-top: 4px; display: block;">
+                        Select a test card to auto-fill the payment form for testing.
+                    </small>
+                </div>
+
+                <!-- Test Card Data Display -->
+                <div id="test-card-data" class="gp-hidden" style="background: #e8f4fd; color: #0c5460; border: 1px solid #bee5eb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <strong id="test-card-status">📋 Selected Test Card Data:</strong>
+                            <div id="test-card-details" style="font-family: monospace; margin-top: 12px; padding: 12px; background: #f8f9fa; border-radius: 4px; font-size: 14px;">
+                                <!-- Card details will be inserted here -->
+                            </div>
+                        </div>
+                        <button type="button" onclick="hideTestCardData()" style="background: none; border: none; font-size: 18px; cursor: pointer; color: #0c5460; padding: 0; margin-left: 16px;">&times;</button>
+                    </div>
+                </div>
+
                 <div class="gp-form-group">
                     <label class="gp-label">Credit Card Information:</label>
                     <div id="credit-card-form"></div>
@@ -60,36 +115,6 @@
             <!-- Result Display -->
             <div id="result-container" style="display: none; margin-top: 20px;">
                 <div id="result-message" class="gp-alert"></div>
-            </div>
-        </div>
-
-        <!-- Test Cards Info -->
-        <div class="gp-card" style="margin-top: 20px;">
-            <div class="gp-card-header" style="text-align: center;">
-                <h2 class="gp-card-title">Need Test Cards?</h2>
-                <p class="gp-card-description">
-                    View the complete list of test cards for sandbox testing.
-                </p>
-            </div>
-            <div style="padding: 20px; text-align: center;">
-                <a href="https://developer.globalpay.com/resources/test-cards"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; background: linear-gradient(135deg, #0066cc 0%, #004c99 100%); color: white; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0, 102, 204, 0.3);">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="2" y="5" width="20" height="14" rx="2"/>
-                        <line x1="2" y1="10" x2="22" y2="10"/>
-                    </svg>
-                    View Test Cards
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                        <polyline points="15 3 21 3 21 9"/>
-                        <line x1="10" y1="14" x2="21" y2="3"/>
-                    </svg>
-                </a>
-                <p style="margin-top: 12px; font-size: 14px; color: #666;">
-                    Opens Global Payments official test cards documentation
-                </p>
             </div>
         </div>
     </div>
@@ -151,6 +176,27 @@
                     amount: '10.00',
                     enableSavedPaymentMethods: false // Disable saved payment methods to avoid permission issues
                 });
+
+                // Wait for form to be ready, then set up test card selector
+                cardForm.ready(() => {
+                    console.log('Drop-In UI form is ready');
+
+                    // If there's a selected test card from previous selection, auto-fill it
+                    if (window.selectedTestCard) {
+                        const cardData = window.selectedTestCard;
+                        try {
+                            cardForm.frames["card-number"].setValue(cardData.number);
+                            cardForm.frames["card-expiration"].setValue(cardData.expiry.replace('/', ''));
+                            cardForm.frames["card-cvv"].setValue(cardData.cvv);
+                            cardForm.frames["card-holder-name"].setValue('Test User');
+                        } catch (error) {
+                            console.warn('Auto-fill after form ready failed:', error);
+                        }
+                    }
+                });
+
+                // Set up test card selector event listener
+                document.getElementById('test-card-select').addEventListener('change', handleTestCardSelect);
 
                 // Handle successful tokenization
                 cardForm.on('token-success', async function(response) {
@@ -218,6 +264,99 @@
 
             // Scroll to result
             resultContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        // Test card selection handler
+        function handleTestCardSelect(event) {
+            const selectedCard = event.target.value;
+            if (!selectedCard || !cardForm) return;
+
+            const testCards = {
+                visa: {
+                    number: '4263970000005262',
+                    cvv: '123',
+                    expiry: '12/2025'
+                },
+                mastercard: {
+                    number: '5425230000004415',
+                    cvv: '123',
+                    expiry: '12/2025'
+                },
+                discover: {
+                    number: '6011000000000087',
+                    cvv: '123',
+                    expiry: '12/2025'
+                },
+                amex: {
+                    number: '374101000000608',
+                    cvv: '1234',
+                    expiry: '12/2025'
+                },
+                jcb: {
+                    number: '3566000000000000',
+                    cvv: '123',
+                    expiry: '12/2025'
+                },
+                diners: {
+                    number: '36256000000725',
+                    cvv: '123',
+                    expiry: '12/2025'
+                }
+            };
+
+            const cardData = testCards[selectedCard];
+            if (cardData) {
+                // Try setValue method for auto-fill
+                let fillSuccessful = false;
+                try {
+                    window.selectedTestCard = cardData; // Store globally for form re-initialization
+
+                    // Try to auto-fill if frames are available
+                    if (cardForm.frames) {
+                        cardForm.frames["card-number"].setValue(cardData.number);
+                        cardForm.frames["card-expiration"].setValue(cardData.expiry.replace('/', ''));
+                        cardForm.frames["card-cvv"].setValue(cardData.cvv);
+                        cardForm.frames["card-holder-name"].setValue('Test User');
+                        fillSuccessful = true;
+                    }
+                } catch (error) {
+                    console.warn('setValue auto-fill failed:', error);
+                }
+
+                // Show the card data persistently
+                showTestCardData(cardData, fillSuccessful);
+
+                // Reset the select back to default
+                event.target.value = '';
+            }
+        }
+
+        // Show test card data in info box
+        function showTestCardData(cardData, autoFillWorked) {
+            const testCardElement = document.getElementById('test-card-data');
+            const statusElement = document.getElementById('test-card-status');
+            const detailsElement = document.getElementById('test-card-details');
+
+            const statusMessage = autoFillWorked ?
+                '✅ Test Card Auto-Filled:' :
+                '📋 Test Card Data - Please Enter Manually:';
+
+            statusElement.textContent = statusMessage;
+
+            detailsElement.innerHTML = `
+                <strong>Card Number:</strong> ${cardData.number}<br>
+                <strong>Expiration:</strong> ${cardData.expiry}<br>
+                <strong>CVV:</strong> ${cardData.cvv}<br>
+                <strong>Cardholder:</strong> Test User
+            `;
+
+            testCardElement.classList.remove('gp-hidden');
+        }
+
+        // Hide test card data info box
+        function hideTestCardData() {
+            document.getElementById('test-card-data').classList.add('gp-hidden');
+            window.selectedTestCard = null;
         }
     </script>
 </body>
