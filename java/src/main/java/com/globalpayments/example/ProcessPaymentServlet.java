@@ -5,7 +5,6 @@ import com.global.api.entities.Transaction;
 import com.global.api.entities.enums.Channel;
 import com.global.api.entities.enums.Environment;
 import com.global.api.entities.exceptions.ApiException;
-import com.global.api.entities.exceptions.ConfigurationException;
 import com.global.api.paymentMethods.CreditCardData;
 import com.global.api.serviceConfigs.GpApiConfig;
 import io.github.cdimascio.dotenv.Dotenv;
@@ -15,9 +14,6 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.json.JSONObject;
-
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -134,16 +130,28 @@ public class ProcessPaymentServlet extends HttpServlet {
                 os.write(input, 0, input.length);
             }
 
-            // Read response
+            // Read response (handle compressed responses such as gzip/deflate)
             int responseCode = conn.getResponseCode();
-            BufferedReader br = new BufferedReader(
-                new java.io.InputStreamReader(
-                    responseCode == 200 ? conn.getInputStream() : conn.getErrorStream(),
-                    StandardCharsets.UTF_8
-                )
-            );
-            String responseBody = br.lines().collect(Collectors.joining());
-            br.close();
+            java.io.InputStream rawStream = responseCode == 200 ? conn.getInputStream() : conn.getErrorStream();
+            String contentEncoding = conn.getHeaderField("Content-Encoding");
+            java.io.InputStream effectiveStream = rawStream;
+            String responseBody = null;
+            try {
+                if (contentEncoding != null) {
+                    String enc = contentEncoding.toLowerCase();
+                    if (enc.contains("gzip")) {
+                        effectiveStream = new java.util.zip.GZIPInputStream(rawStream);
+                    } else if (enc.contains("deflate")) {
+                        effectiveStream = new java.util.zip.InflaterInputStream(rawStream);
+                    }
+                }
+
+                BufferedReader br = new BufferedReader(new java.io.InputStreamReader(effectiveStream, StandardCharsets.UTF_8));
+                responseBody = br.lines().collect(Collectors.joining());
+                br.close();
+            } finally {
+                try { if (rawStream != null) rawStream.close(); } catch (Exception _e) { /* ignore */ }
+            }
 
             if (responseCode != 200) {
                 throw new Exception("Failed to generate access token: " + responseBody);
@@ -242,7 +250,7 @@ public class ProcessPaymentServlet extends HttpServlet {
                 throw new ApiException("Transaction declined: " + transaction.getResponseMessage());
             }
 
-        } catch (ApiException | ConfigurationException e) {
+        } catch (ApiException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             JSONObject errorResponse = new JSONObject();
             errorResponse.put("success", false);

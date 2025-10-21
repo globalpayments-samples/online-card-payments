@@ -6,6 +6,8 @@ using dotenv.net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Net;
+using System.Net.Http;
 
 namespace CardPaymentSample;
 
@@ -98,8 +100,18 @@ public class Program
                     : "https://apis.sandbox.globalpay.com/ucp/accesstoken";
 
                 // Make API request
-                using var httpClient = new HttpClient();
+                // Enable automatic decompression so compressed responses (gzip/deflate)
+                // from the API are decoded before we read them as JSON.
+                using var handler = new HttpClientHandler
+                {
+                    AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+                };
+
+                using var httpClient = new HttpClient(handler);
                 httpClient.DefaultRequestHeaders.Add("X-GP-Version", "2021-03-22");
+                // Advertise accepted encodings (optional - handler will handle decompression)
+                httpClient.DefaultRequestHeaders.AcceptEncoding.Add(new System.Net.Http.Headers.StringWithQualityHeaderValue("gzip"));
+                httpClient.DefaultRequestHeaders.AcceptEncoding.Add(new System.Net.Http.Headers.StringWithQualityHeaderValue("deflate"));
 
                 var jsonContent = JsonSerializer.Serialize(tokenRequest);
                 var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
