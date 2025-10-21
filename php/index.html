@@ -144,6 +144,92 @@
         let cardForm;
         let accessToken;
 
+        // Initialize the payment form
+        function initializePaymentForm() {
+            // Initialize Drop-In UI form
+            cardForm = GlobalPayments.creditCard.form('#credit-card-form', {
+                style: 'gp-default',
+                amount: '10.00',
+                enableSavedPaymentMethods: false // Disable saved payment methods to avoid permission issues
+            });
+
+            // Wait for form to be ready, then set up test card selector
+            cardForm.ready(() => {
+                console.log('Drop-In UI form is ready');
+
+                // Auto-apply stored test card data if available
+                if (window.selectedTestCard) {
+                    const cardData = window.selectedTestCard;
+                    try {
+                        cardForm.frames["card-number"].setValue(cardData.number);
+                        cardForm.frames["card-expiration"].setValue(cardData.expiry.replace('/', ''));
+                        cardForm.frames["card-cvv"].setValue(cardData.cvv);
+                        cardForm.frames["card-holder-name"].setValue('Test User');
+                        console.log('Test card data auto-applied successfully');
+                    } catch (error) {
+                        console.warn('Failed to re-apply test card data:', error);
+                    }
+                }
+            });
+
+            // Handle successful tokenization
+            cardForm.on('token-success', async function(response) {
+                console.log('Token generated:', response.paymentReference);
+
+                // Get amount from form
+                const amount = document.getElementById('amount').value;
+
+                // Submit payment to backend with the access token used for tokenization
+                try {
+                    const paymentResponse = await fetch('process-sale.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            payment_reference: response.paymentReference,
+                            amount: parseFloat(amount),
+                            currency: 'USD',
+
+                        })
+                    });
+
+                    const paymentData = await paymentResponse.json();
+
+                    console.log('Payment response:', paymentData);
+
+                    if (paymentData.success) {
+                        showResult('success', 'Payment Successful! Transaction ID: ' + paymentData.data.transactionId);
+                    } else {
+                        console.error('Payment failed:', paymentData);
+                        showResult('error', 'Payment Failed: ' + (paymentData.error || paymentData.message));
+                    }
+                } catch (error) {
+                    showResult('error', 'Payment processing error: ' + error.message);
+                }
+            });
+
+            // Handle tokenization errors
+            cardForm.on('token-error', function(response) {
+                console.error('Token error:', response);
+                showResult('error', 'Card validation failed: ' + (response.reasons?.[0]?.message || 'Invalid card details'));
+            });
+        }
+
+        // Reset form and reinitialize
+        function resetForm() {
+            try {
+                window.selectedTestCard = null;
+                document.querySelectorAll('#credit-card-form>*').forEach((el) => {
+                    el.parentElement.removeChild(el);
+                });
+                cardForm.dispose();
+                initializePaymentForm();
+            } catch (error) {
+                console.warn('Form reset failed:', error);
+            }
+        }
+
         // Initialize the Drop-In UI when page loads
         document.addEventListener('DOMContentLoaded', async function() {
             try {
@@ -170,76 +256,11 @@
                     env: 'sandbox' // Change to 'production' for live
                 });
 
-                // Initialize Drop-In UI form
-                cardForm = GlobalPayments.creditCard.form('#credit-card-form', {
-                    style: 'gp-default',
-                    amount: '10.00',
-                    enableSavedPaymentMethods: false // Disable saved payment methods to avoid permission issues
-                });
-
-                // Wait for form to be ready, then set up test card selector
-                cardForm.ready(() => {
-                    console.log('Drop-In UI form is ready');
-
-                    // If there's a selected test card from previous selection, auto-fill it
-                    if (window.selectedTestCard) {
-                        const cardData = window.selectedTestCard;
-                        try {
-                            cardForm.frames["card-number"].setValue(cardData.number);
-                            cardForm.frames["card-expiration"].setValue(cardData.expiry.replace('/', ''));
-                            cardForm.frames["card-cvv"].setValue(cardData.cvv);
-                            cardForm.frames["card-holder-name"].setValue('Test User');
-                        } catch (error) {
-                            console.warn('Auto-fill after form ready failed:', error);
-                        }
-                    }
-                });
+                // Initialize the payment form
+                initializePaymentForm();
 
                 // Set up test card selector event listener
                 document.getElementById('test-card-select').addEventListener('change', handleTestCardSelect);
-
-                // Handle successful tokenization
-                cardForm.on('token-success', async function(response) {
-                    console.log('Token generated:', response.paymentReference);
-
-                    // Get amount from form
-                    const amount = document.getElementById('amount').value;
-
-                    // Submit payment to backend with the access token used for tokenization
-                    try {
-                        const paymentResponse = await fetch('process-sale.php', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                payment_reference: response.paymentReference,
-                                amount: parseFloat(amount),
-                                currency: 'USD',
-                                
-                            })
-                        });
-
-                        const paymentData = await paymentResponse.json();
-
-                        console.log('Payment response:', paymentData);
-
-                        if (paymentData.success) {
-                            showResult('success', 'Payment Successful! Transaction ID: ' + paymentData.data.transactionId);
-                        } else {
-                            console.error('Payment failed:', paymentData);
-                            showResult('error', 'Payment Failed: ' + (paymentData.error || paymentData.message));
-                        }
-                    } catch (error) {
-                        showResult('error', 'Payment processing error: ' + error.message);
-                    }
-                });
-
-                // Handle tokenization errors
-                cardForm.on('token-error', function(response) {
-                    console.error('Token error:', response);
-                    showResult('error', 'Card validation failed: ' + (response.reasons?.[0]?.message || 'Invalid card details'));
-                });
 
                 console.log('Drop-In UI initialized successfully');
 
@@ -266,67 +287,55 @@
             resultContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-        // Test card selection handler
+        // Test Cards data
+        const testCards = {
+            visa: {
+                number: '4263970000005262',
+                cvv: '123',
+                expiry: '12/2025'
+            },
+            mastercard: {
+                number: '5425230000004415',
+                cvv: '123',
+                expiry: '12/2025'
+            },
+            discover: {
+                number: '6011000000000087',
+                cvv: '123',
+                expiry: '12/2025'
+            },
+            amex: {
+                number: '374101000000608',
+                cvv: '1234',
+                expiry: '12/2025'
+            },
+            jcb: {
+                number: '3566000000000000',
+                cvv: '123',
+                expiry: '12/2025'
+            },
+            diners: {
+                number: '36256000000725',
+                cvv: '123',
+                expiry: '12/2025'
+            }
+        };
+
+        // Handle test card selection
         function handleTestCardSelect(event) {
             const selectedCard = event.target.value;
             if (!selectedCard || !cardForm) return;
 
-            const testCards = {
-                visa: {
-                    number: '4263970000005262',
-                    cvv: '123',
-                    expiry: '12/2025'
-                },
-                mastercard: {
-                    number: '5425230000004415',
-                    cvv: '123',
-                    expiry: '12/2025'
-                },
-                discover: {
-                    number: '6011000000000087',
-                    cvv: '123',
-                    expiry: '12/2025'
-                },
-                amex: {
-                    number: '374101000000608',
-                    cvv: '1234',
-                    expiry: '12/2025'
-                },
-                jcb: {
-                    number: '3566000000000000',
-                    cvv: '123',
-                    expiry: '12/2025'
-                },
-                diners: {
-                    number: '36256000000725',
-                    cvv: '123',
-                    expiry: '12/2025'
-                }
-            };
-
             const cardData = testCards[selectedCard];
             if (cardData) {
-                // Try setValue method for auto-fill
-                let fillSuccessful = false;
                 try {
-                    window.selectedTestCard = cardData; // Store globally for form re-initialization
-
-                    // Try to auto-fill if frames are available
-                    if (cardForm.frames) {
-                        cardForm.frames["card-number"].setValue(cardData.number);
-                        cardForm.frames["card-expiration"].setValue(cardData.expiry.replace('/', ''));
-                        cardForm.frames["card-cvv"].setValue(cardData.cvv);
-                        cardForm.frames["card-holder-name"].setValue('Test User');
-                        fillSuccessful = true;
-                    }
+                    resetForm();
+                    window.selectedTestCard = cardData;
+                    showTestCardData(cardData, true);
                 } catch (error) {
-                    console.warn('setValue auto-fill failed:', error);
+                    console.warn('Test card selection failed:', error);
+                    showTestCardData(cardData, false);
                 }
-
-                // Show the card data persistently
-                showTestCardData(cardData, fillSuccessful);
-
-                // Reset the select back to default
                 event.target.value = '';
             }
         }
