@@ -1,183 +1,269 @@
 package com.globalpayments.example;
 
 import com.global.api.ServicesContainer;
-import com.global.api.entities.Address;
 import com.global.api.entities.Transaction;
+import com.global.api.entities.enums.Channel;
+import com.global.api.entities.enums.Environment;
 import com.global.api.entities.exceptions.ApiException;
-import com.global.api.entities.exceptions.ConfigurationException;
 import com.global.api.paymentMethods.CreditCardData;
-import com.global.api.serviceConfigs.PorticoConfig;
+import com.global.api.serviceConfigs.GpApiConfig;
 import io.github.cdimascio.dotenv.Dotenv;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.json.JSONObject;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.math.BigDecimal;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.util.stream.Collectors;
 
 /**
- * Card Payment Processing Servlet
- * 
- * This servlet demonstrates card payment processing using the Global Payments SDK.
- * It provides endpoints for configuration and payment processing, handling 
- * tokenized card data to ensure secure payment processing.
- * 
+ * Global Payments Drop-In UI - Sale Transaction Servlet (Java)
+ *
+ * This servlet implements Global Payments Drop-In UI integration
+ * for processing Sale transactions using the official Java SDK.
+ *
  * Endpoints:
- * - GET /config: Returns the public API key for client-side tokenization
- * - POST /process-payment: Processes card payments using tokenized data
- * 
+ * - POST /get-access-token: Generates access token for Drop-In UI tokenization
+ * - POST /process-sale: Processes Sale transaction using payment reference
+ *
  * @author Global Payments
- * @version 1.0
+ * @version 2.0
  */
 
-@WebServlet(urlPatterns = {"/process-payment", "/config"})
+@WebServlet(urlPatterns = {"/get-access-token", "/process-sale"})
 public class ProcessPaymentServlet extends HttpServlet {
-    
+
     private static final long serialVersionUID = 1L;
     private final Dotenv dotenv = Dotenv.load();
-    
-    /**
-     * Initializes the servlet and configures the Global Payments SDK.
-     * This must be called before processing any payments.
-     * 
-     * @throws ServletException if there's an error initializing the servlet
-     */
-    @Override
-    public void init() throws ServletException {
-        try {
-            // Configure the Global Payments SDK with credentials and settings
-            PorticoConfig config = new PorticoConfig();
-            config.setSecretApiKey(dotenv.get("SECRET_API_KEY"));
-            config.setDeveloperId("000000");
-            config.setVersionNumber("0000");
-            config.setServiceUrl("https://cert.api2.heartlandportico.com");
 
-            ServicesContainer.configureService(config);
-        } catch (ConfigurationException e) {
-            // Log configuration errors and propagate as ServletException
-            throw new ServletException("Failed to configure Global Payments SDK", e);
+    /**
+     * Generates a random nonce for access token request
+     */
+    private String generateNonce() {
+        SecureRandom random = new SecureRandom();
+        byte[] bytes = new byte[16];
+        random.nextBytes(bytes);
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
         }
+        return sb.toString();
     }
 
     /**
-     * Handles GET requests to /config endpoint.
-     * Returns the public API key needed for client-side tokenization.
-     *
-     * @param request The HTTP request
-     * @param response The HTTP response
-     * @throws ServletException If there's an error in servlet processing
-     * @throws IOException If there's an I/O error
+     * Creates SHA-512 hash of nonce + appKey
      */
-    @Override
-    protected void doGet(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        if (request.getServletPath().equals("/config")) {
-        response.setContentType("application/json");
-        String publicKey = dotenv.get("PUBLIC_API_KEY");
-        String jsonResponse = String.format(
-            "{\"success\":true,\"data\":{\"publicApiKey\":\"%s\"}}", 
-            publicKey
-        );
-        response.getWriter().write(jsonResponse);
+    private String hashSecret(String nonce, String appKey) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-512");
+        byte[] hash = digest.digest((nonce + appKey).getBytes(StandardCharsets.UTF_8));
+        StringBuilder sb = new StringBuilder();
+        for (byte b : hash) {
+            sb.append(String.format("%02x", b));
         }
+        return sb.toString();
     }
 
     /**
-     * Sanitizes postal code input by removing invalid characters.
-     * Only allows alphanumeric characters and hyphens, limited to 10 characters.
-     *
-     * @param postalCode The postal code to sanitize, can be null
-     * @return A sanitized postal code containing only alphanumeric characters
-     *         and hyphens, limited to 10 characters. Returns empty string if input is null.
-     */
-    private String sanitizePostalCode(String postalCode) {
-        if (postalCode == null) {
-            return "";
-        }
-        String sanitized = postalCode.replaceAll("[^a-zA-Z0-9-]", "");
-        return sanitized.length() > 10 ? sanitized.substring(0, 10) : sanitized;
-    }
-
-    /**
-     * Handles POST requests to /process-payment endpoint.
-     * Processes card payments using tokenized card data.
-     *
-     * @param request The HTTP request containing payment details
-     * @param response The HTTP response
-     * @throws ServletException If there's an error in servlet processing
-     * @throws IOException If there's an I/O error
+     * Handles POST requests
      */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
+
         response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
 
+        String path = request.getServletPath();
+
+        if ("/get-access-token".equals(path)) {
+            handleGetAccessToken(request, response);
+        } else if ("/process-sale".equals(path)) {
+            handleProcessSale(request, response);
+        }
+    }
+
+    /**
+     * Handles /get-access-token endpoint
+     * Generates access token with PMT_POST_Create_Single permission for Drop-In UI
+     */
+    private void handleGetAccessToken(HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
         try {
-            // Validate and extract payment information
-            String paymentToken = request.getParameter("payment_token");
-            String billingZip = request.getParameter("billing_zip");
-            String amountStr = request.getParameter("amount");
+            // Generate nonce and secret
+            String nonce = generateNonce();
+            String secret = hashSecret(nonce, dotenv.get("GP_APP_KEY"));
 
-            if (paymentToken == null || billingZip == null || amountStr == null ||
-                paymentToken.trim().isEmpty() || billingZip.trim().isEmpty() || amountStr.trim().isEmpty()) {
-                throw new ApiException("Missing required fields");
+            // Build token request JSON
+            JSONObject tokenRequest = new JSONObject();
+            tokenRequest.put("app_id", dotenv.get("GP_APP_ID"));
+            tokenRequest.put("nonce", nonce);
+            tokenRequest.put("secret", secret);
+            tokenRequest.put("grant_type", "client_credentials");
+            tokenRequest.put("seconds_to_expire", 600);
+            tokenRequest.put("permissions", new String[]{"PMT_POST_Create_Single"});
+
+            // Determine API endpoint
+            String apiEndpoint = "production".equals(dotenv.get("GP_ENVIRONMENT"))
+                ? "https://apis.globalpay.com/ucp/accesstoken"
+                : "https://apis.sandbox.globalpay.com/ucp/accesstoken";
+
+            // Make API request
+            URL url = new URL(apiEndpoint);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("X-GP-Version", "2021-03-22");
+            conn.setDoOutput(true);
+
+            // Send request
+            try (OutputStream os = conn.getOutputStream()) {
+                byte[] input = tokenRequest.toString().getBytes(StandardCharsets.UTF_8);
+                os.write(input, 0, input.length);
             }
 
-            // Validate and parse amount
-            BigDecimal amount;
+            // Read response (handle compressed responses such as gzip/deflate)
+            int responseCode = conn.getResponseCode();
+            java.io.InputStream rawStream = responseCode == 200 ? conn.getInputStream() : conn.getErrorStream();
+            String contentEncoding = conn.getHeaderField("Content-Encoding");
+            java.io.InputStream effectiveStream = rawStream;
+            String responseBody = null;
             try {
-                amount = new BigDecimal(amountStr);
-                if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-                    throw new ApiException("Amount must be a positive number");
+                if (contentEncoding != null) {
+                    String enc = contentEncoding.toLowerCase();
+                    if (enc.contains("gzip")) {
+                        effectiveStream = new java.util.zip.GZIPInputStream(rawStream);
+                    } else if (enc.contains("deflate")) {
+                        effectiveStream = new java.util.zip.InflaterInputStream(rawStream);
+                    }
                 }
-            } catch (NumberFormatException e) {
-                throw new ApiException("Invalid amount format");
+
+                BufferedReader br = new BufferedReader(new java.io.InputStreamReader(effectiveStream, StandardCharsets.UTF_8));
+                responseBody = br.lines().collect(Collectors.joining());
+                br.close();
+            } finally {
+                try { if (rawStream != null) rawStream.close(); } catch (Exception _e) { /* ignore */ }
             }
 
-            // Initialize payment data using tokenized card information
+            if (responseCode != 200) {
+                throw new Exception("Failed to generate access token: " + responseBody);
+            }
+
+            // Parse response
+            JSONObject tokenResponse = new JSONObject(responseBody);
+            String token = tokenResponse.getString("token");
+            int expiresIn = tokenResponse.optInt("seconds_to_expire", 600);
+
+            // Return success response
+            JSONObject successResponse = new JSONObject();
+            successResponse.put("success", true);
+            successResponse.put("token", token);
+            successResponse.put("expiresIn", expiresIn);
+
+            response.getWriter().write(successResponse.toString());
+
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            JSONObject errorResponse = new JSONObject();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "Error generating access token");
+            errorResponse.put("error", e.getMessage());
+            response.getWriter().write(errorResponse.toString());
+        }
+    }
+
+    /**
+     * Handles /process-sale endpoint
+     * Processes Sale transaction using Global Payments SDK
+     */
+    private void handleProcessSale(HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
+        try {
+            // Read JSON request body
+            BufferedReader reader = request.getReader();
+            String requestBody = reader.lines().collect(Collectors.joining());
+            JSONObject jsonRequest = new JSONObject(requestBody);
+
+            // Validate input
+            if (!jsonRequest.has("payment_reference")) {
+                throw new ApiException("Missing payment reference");
+            }
+
+            if (!jsonRequest.has("amount") || jsonRequest.getDouble("amount") <= 0) {
+                throw new ApiException("Invalid amount");
+            }
+
+            String paymentReference = jsonRequest.getString("payment_reference");
+            BigDecimal amount = jsonRequest.getBigDecimal("amount");
+            String currency = jsonRequest.optString("currency", "USD");
+
+            // Configure Global Payments SDK
+            GpApiConfig config = new GpApiConfig();
+            config.setAppId(dotenv.get("GP_APP_ID"));
+            config.setAppKey(dotenv.get("GP_APP_KEY"));
+            config.setEnvironment("production".equals(dotenv.get("GP_ENVIRONMENT"))
+                ? Environment.PRODUCTION
+                : Environment.TEST);
+            config.setChannel(Channel.CardNotPresent);
+            config.setCountry("US");
+
+            // Note: Don't set account name - let SDK auto-detect
+
+            // Configure the service
+            ServicesContainer.configureService(config);
+
+            // Create card data from payment reference token
             CreditCardData card = new CreditCardData();
-            card.setToken(paymentToken);
+            card.setToken(paymentReference);
 
-            // Create billing address for AVS verification
-            Address address = new Address();
-            address.setPostalCode(sanitizePostalCode(billingZip));
-
-            // Process the payment transaction using the provided amount
+            // Process the charge
             Transaction transaction = card.charge(amount)
-                    .withAllowDuplicates(true)
-                    .withCurrency("USD")
-                    .withAddress(address)
-                    .execute();
+                .withCurrency(currency)
+                .execute();
 
-            // Verify transaction was successful
-            if (!"00".equals(transaction.getResponseCode())) {
-                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                String errorResponse = String.format(
-                    "{\"success\":false,\"message\":\"Payment processing failed\",\"error\":{\"code\":\"PAYMENT_DECLINED\",\"details\":\"%s\"}}", 
-                    transaction.getResponseMessage()
-                );
-                response.getWriter().write(errorResponse);
-                return;
+            // Check response
+            String responseCode = transaction.getResponseCode();
+            if ("00".equals(responseCode) || "SUCCESS".equals(responseCode)) {
+                JSONObject successResponse = new JSONObject();
+                successResponse.put("success", true);
+                successResponse.put("message", "Payment successful!");
+
+                JSONObject data = new JSONObject();
+                data.put("transactionId", transaction.getTransactionId());
+                data.put("status", transaction.getResponseMessage());
+                data.put("amount", amount.toString());
+                data.put("currency", currency);
+                data.put("reference", transaction.getReferenceNumber() != null ? transaction.getReferenceNumber() : "");
+                data.put("timestamp", transaction.getTimestamp() != null ? transaction.getTimestamp() : "");
+
+                successResponse.put("data", data);
+                response.getWriter().write(successResponse.toString());
+            } else {
+                throw new ApiException("Transaction declined: " + transaction.getResponseMessage());
             }
-
-            // Return success response with transaction ID
-            String successResponse = String.format(
-                "{\"success\":true,\"message\":\"Payment successful! Transaction ID: %s\",\"data\":{\"transactionId\":\"%s\"}}", 
-                transaction.getTransactionId(),
-                transaction.getTransactionId()
-            );
-            response.getWriter().write(successResponse);
 
         } catch (ApiException e) {
-            // Handle payment processing errors
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            String errorResponse = String.format(
-                "{\"success\":false,\"message\":\"Payment processing failed\",\"error\":{\"code\":\"API_ERROR\",\"details\":\"%s\"}}", 
-                e.getMessage()
-            );
-            response.getWriter().write(errorResponse);
+            JSONObject errorResponse = new JSONObject();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "Payment processing failed");
+            errorResponse.put("error", e.getMessage());
+            response.getWriter().write(errorResponse.toString());
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            JSONObject errorResponse = new JSONObject();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "Payment processing failed");
+            errorResponse.put("error", e.getMessage());
+            response.getWriter().write(errorResponse.toString());
         }
     }
 }
