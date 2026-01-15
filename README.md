@@ -1,6 +1,6 @@
 # Global Payments Drop-In UI - Sale Transaction (Multi-Language)
 
-Complete implementation of Global Payments Drop-In UI for processing Sale transactions using the official SDKs across 6 programming languages. All implementations follow the same architecture and use modern GP-API with GpApiConfig.
+Complete implementation of Global Payments Drop-In UI for processing Sale transactions using the official SDKs across 4 programming languages. All implementations follow the same architecture and use modern GP-API with GpApiConfig.
 
 ## 🚀 Available Implementations
 
@@ -39,7 +39,7 @@ Success/Error Response
 ### 1. Choose Your Language
 
 ```bash
-cd php        # or nodejs, python, go, java, dotnet
+cd php        # or nodejs, java, dotnet
 ```
 
 ### 2. Configure Credentials
@@ -66,18 +66,6 @@ php -S localhost:8000
 ```bash
 npm install
 npm start
-```
-
-**Python:**
-```bash
-pip install -r requirements.txt
-python server.py
-```
-
-**Go:**
-```bash
-go mod download
-go run main.go
 ```
 
 **Java:**
@@ -175,8 +163,6 @@ language/
 |----------|------------|---------------|-------------|
 | PHP | `get-access-token.php`, `process-sale.php` | `index.html` | `composer.json` |
 | Node.js | `server.js` | `index.html` | `package.json` |
-| Python | `server.py` | `index.html` | `requirements.txt` |
-| Go | `main.go` | `static/index.html` | `go.mod` |
 | Java | `ProcessPaymentServlet.java` | `src/main/webapp/index.html` | `pom.xml` |
 | .NET | `Program.cs` | `wwwroot/index.html` | `dotnet.csproj` |
 
@@ -249,8 +235,6 @@ GlobalPayments.configure({
 
 - **PHP:** Use Apache/Nginx with PHP-FPM
 - **Node.js:** Use PM2 or similar process manager
-- **Python:** Use Gunicorn with multiple workers
-- **Go:** Deploy compiled binary with systemd
 - **Java:** Use Tomcat or similar servlet container
 - **.NET:** Use Kestrel behind reverse proxy (Nginx/IIS)
 
@@ -262,8 +246,6 @@ Each implementation has its own detailed README:
 
 - [PHP README](./php/README.md) - Comprehensive PHP documentation
 - [Node.js README](./nodejs/README.md) - Node.js specific guide
-- [Python README](./python/README.md) - Python/Flask documentation
-- [Go README](./go/README.md) - Go implementation guide
 - [Java README](./java/README.md) - Java/Maven documentation
 - [.NET README](./dotnet/README.md) - .NET Core guide
 
@@ -316,7 +298,7 @@ If migrating from Portico, see the commit history on the `rewriting-implementati
 
 ## 📊 Project Stats
 
-- **6 Languages:** PHP, Node.js, Python, Go, Java, .NET
+- **4 Languages:** PHP, Node.js, Java, .NET
 - **100% Feature Parity:** All implementations identical
 - **PCI Compliant:** SAQ A level compliance
 - **Production Ready:** Comprehensive error handling
@@ -352,7 +334,5 @@ Potential future enhancements:
 Built with official Global Payments SDKs:
 - [PHP SDK](https://github.com/globalpayments/php-sdk)
 - [Node.js SDK](https://github.com/globalpayments/node-sdk)
-- [Python SDK](https://github.com/globalpayments/python-sdk)
-- [Go SDK](https://github.com/globalpayments/go-sdk)
 - [Java SDK](https://github.com/globalpayments/java-sdk)
 - [.NET SDK](https://github.com/globalpayments/dotnet-sdk)
