@@ -1,6 +1,6 @@
 FROM mcr.microsoft.com/devcontainers/java
 
-ARG MAVEN_VERSION=3.9.11
+ARG MAVEN_VERSION=3.9.12
 ARG USER_HOME_DIR="/root"
 ARG BASE_URL=https://dlcdn.apache.org/maven/maven-3/${MAVEN_VERSION}/binaries
 
