@@ -81,12 +81,12 @@ public class Program
             {
                 // Generate nonce and secret
                 var nonce = GenerateNonce();
-                var secret = HashSecret(nonce, System.Environment.GetEnvironmentVariable("GP_APP_KEY") ?? "");
+                var secret = HashSecret(nonce, System.Environment.GetEnvironmentVariable("GP_API_APP_KEY") ?? "");
 
                 // Build token request
                 var tokenRequest = new
                 {
-                    app_id = System.Environment.GetEnvironmentVariable("GP_APP_ID"),
+                    app_id = System.Environment.GetEnvironmentVariable("GP_API_APP_ID"),
                     nonce = nonce,
                     secret = secret,
                     grant_type = "client_credentials",
@@ -175,8 +175,8 @@ public class Program
                 // Configure Global Payments SDK
                 var config = new GpApiConfig
                 {
-                    AppId = System.Environment.GetEnvironmentVariable("GP_APP_ID"),
-                    AppKey = System.Environment.GetEnvironmentVariable("GP_APP_KEY"),
+                    AppId = System.Environment.GetEnvironmentVariable("GP_API_APP_ID"),
+                    AppKey = System.Environment.GetEnvironmentVariable("GP_API_APP_KEY"),
                     Environment = "production".Equals(System.Environment.GetEnvironmentVariable("GP_ENVIRONMENT"))
                         ? GlobalPayments.Api.Entities.Environment.PRODUCTION
                         : GlobalPayments.Api.Entities.Environment.TEST,

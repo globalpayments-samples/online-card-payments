@@ -62,8 +62,8 @@ try {
 
     // Configure Global Payments SDK
     $config = new GpApiConfig();
-    $config->appId = $_ENV['GP_APP_ID'];
-    $config->appKey = $_ENV['GP_APP_KEY'];
+    $config->appId = $_ENV['GP_API_APP_ID'];
+    $config->appKey = $_ENV['GP_API_APP_KEY'];
     $config->environment = ($_ENV['GP_ENVIRONMENT'] ?? 'sandbox') === 'production'
         ? Environment::PRODUCTION
         : Environment::TEST;

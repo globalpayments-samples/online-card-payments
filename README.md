@@ -49,8 +49,8 @@ cd php        # or nodejs, python, go, java, dotnet
 cp .env.sample .env
 
 # Edit .env with your credentials
-GP_APP_ID=your_app_id_here
-GP_APP_KEY=your_app_key_here
+GP_API_APP_ID=your_app_id_here
+GP_API_APP_KEY=your_app_key_here
 GP_ENVIRONMENT=sandbox
 ```
 
@@ -118,8 +118,8 @@ All implementations use the same environment variables:
 
 ```env
 # Required
-GP_APP_ID=your_app_id_here          # From developer dashboard
-GP_APP_KEY=your_app_key_here        # From developer dashboard
+GP_API_APP_ID=your_app_id_here          # From developer dashboard
+GP_API_APP_KEY=your_app_key_here        # From developer dashboard
 
 # Optional
 GP_ENVIRONMENT=sandbox              # sandbox or production
@@ -204,8 +204,8 @@ All implementations use this pattern:
 ```javascript
 // Conceptual example
 config = new GpApiConfig()
-config.appId = GP_APP_ID
-config.appKey = GP_APP_KEY
+config.appId = GP_API_APP_ID
+config.appKey = GP_API_APP_KEY
 config.environment = GP_ENVIRONMENT
 config.channel = CardNotPresent
 config.country = "US"
@@ -282,7 +282,7 @@ Each implementation has its own detailed README:
 - **Solution:** Comment out `GP_ACCOUNT_NAME` in `.env` file. Let SDK auto-detect.
 
 **"Failed to generate access token"**
-- **Solution:** Verify `GP_APP_ID` and `GP_APP_KEY` are correct in `.env` file.
+- **Solution:** Verify `GP_API_APP_ID` and `GP_API_APP_KEY` are correct in `.env` file.
 
 **Drop-In UI not loading**
 - **Solution:** Check browser console for errors. Verify access token is generated successfully.
@@ -308,7 +308,7 @@ This project uses modern **GP-API** with **GpApiConfig** (not legacy Portico/Hea
 | Legacy (Portico) | Modern (GP-API) |
 |------------------|-----------------|
 | PorticoConfig | GpApiConfig |
-| SECRET_API_KEY | GP_APP_ID + GP_APP_KEY |
+| SECRET_API_KEY | GP_API_APP_ID + GP_API_APP_KEY |
 | Manual account config | Auto-detection |
 | Basic forms | Drop-In UI |
 

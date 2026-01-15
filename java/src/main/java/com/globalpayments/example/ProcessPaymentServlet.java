@@ -100,11 +100,11 @@ public class ProcessPaymentServlet extends HttpServlet {
         try {
             // Generate nonce and secret
             String nonce = generateNonce();
-            String secret = hashSecret(nonce, dotenv.get("GP_APP_KEY"));
+            String secret = hashSecret(nonce, dotenv.get("GP_API_APP_KEY"));
 
             // Build token request JSON
             JSONObject tokenRequest = new JSONObject();
-            tokenRequest.put("app_id", dotenv.get("GP_APP_ID"));
+            tokenRequest.put("app_id", dotenv.get("GP_API_APP_ID"));
             tokenRequest.put("nonce", nonce);
             tokenRequest.put("secret", secret);
             tokenRequest.put("grant_type", "client_credentials");
@@ -207,8 +207,8 @@ public class ProcessPaymentServlet extends HttpServlet {
 
             // Configure Global Payments SDK
             GpApiConfig config = new GpApiConfig();
-            config.setAppId(dotenv.get("GP_APP_ID"));
-            config.setAppKey(dotenv.get("GP_APP_KEY"));
+            config.setAppId(dotenv.get("GP_API_APP_ID"));
+            config.setAppKey(dotenv.get("GP_API_APP_KEY"));
             config.setEnvironment("production".equals(dotenv.get("GP_ENVIRONMENT"))
                 ? Environment.PRODUCTION
                 : Environment.TEST);

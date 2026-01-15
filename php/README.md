@@ -15,8 +15,8 @@ Complete implementation of Global Payments Drop-In UI for processing Sale transa
 cp .env.sample .env
 
 # Edit .env file and add your credentials:
-GP_APP_ID=your_app_id_here
-GP_APP_KEY=your_app_key_here
+GP_API_APP_ID=your_app_id_here
+GP_API_APP_KEY=your_app_key_here
 GP_ENVIRONMENT=sandbox
 
 # IMPORTANT: Leave GP_ACCOUNT_NAME commented out (SDK auto-detects)
@@ -144,8 +144,8 @@ Processes Sale transaction using payment reference via PHP SDK.
 
 ```env
 # Application credentials (REQUIRED)
-GP_APP_ID=your_app_id_here          # From developer dashboard
-GP_APP_KEY=your_app_key_here        # From developer dashboard
+GP_API_APP_ID=your_app_id_here          # From developer dashboard
+GP_API_APP_KEY=your_app_key_here        # From developer dashboard
 
 # Environment: sandbox or production
 GP_ENVIRONMENT=sandbox
@@ -186,7 +186,7 @@ GP_ENVIRONMENT=sandbox
 
 | Error | Cause | Solution |
 |-------|-------|----------|
-| Failed to get access token | Invalid credentials | Verify GP_APP_ID and GP_APP_KEY in .env |
+| Failed to get access token | Invalid credentials | Verify GP_API_APP_ID and GP_API_APP_KEY in .env |
 | Access token and merchant info do not match | Account name mismatch | Comment out GP_ACCOUNT_NAME in .env |
 | Drop-In UI not loading | Server not running | Run `php -S localhost:8000` |
 | Transaction declined | Invalid card/amount | Use test cards, check amount > 0 |
@@ -289,7 +289,7 @@ header('Access-Control-Allow-Origin: https://yourdomain.com');
 **Symptoms:** Error generating access token
 
 **Solutions:**
-1. Verify GP_APP_ID and GP_APP_KEY in .env are correct
+1. Verify GP_API_APP_ID and GP_API_APP_KEY in .env are correct
 2. Check internet connectivity
 3. Ensure using sandbox credentials for testing
 4. Verify account is active in developer portal
@@ -359,8 +359,8 @@ The SDK is configured in `process-sale.php`:
 
 ```php
 $config = new GpApiConfig();
-$config->appId = $_ENV['GP_APP_ID'];
-$config->appKey = $_ENV['GP_APP_KEY'];
+$config->appId = $_ENV['GP_API_APP_ID'];
+$config->appKey = $_ENV['GP_API_APP_KEY'];
 $config->environment = Environment::TEST; // or Environment::PRODUCTION
 $config->channel = Channel::CardNotPresent;
 $config->country = 'US';
