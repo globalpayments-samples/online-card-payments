@@ -8,8 +8,6 @@ Complete implementation of Global Payments Drop-In UI for processing Sale transa
 |----------|-----------|-------------|------|--------|
 | [**PHP**](./php/)- ([Preview](https://githubbox.com/globalpayments-samples/drop-in-ui-payments/tree/main/php)) | Built-in Server | v13.4+ | 8000 | ✅ Complete |
 | [**Node.js**](./nodejs/)- ([Preview](https://githubbox.com/globalpayments-samples/drop-in-ui-payments/tree/main/nodejs)) | Express.js | v3.10.6+ | 8000 | ✅ Complete |
-| [**Python**](./python/)- ([Preview](https://githubbox.com/globalpayments-samples/drop-in-ui-payments/tree/main/python)) | Flask | v2.0.4+ | 8000 | ✅ Complete |
-| [**Go**](./go/)- ([Preview](https://githubbox.com/globalpayments-samples/drop-in-ui-payments/tree/main/go)) | Native HTTP | v1.1.3 | 8000 | ✅ Complete |
 | [**Java**](./java/)- ([Preview](https://githubbox.com/globalpayments-samples/drop-in-ui-payments/tree/main/java)) | Jakarta Servlet | v14.2.20 | 8000 | ✅ Complete |
 | [**.NET**](./dotnet/)- ([Preview](https://githubbox.com/globalpayments-samples/drop-in-ui-payments/tree/main/dotnet)) | ASP.NET Core | v9.0.16 | 8000 | ✅ Complete |
 
