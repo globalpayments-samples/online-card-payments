@@ -61,10 +61,8 @@ start_services() {
     echo ""
     echo "Services available at:"
     echo "  Node.js: http://localhost:8001"
-    echo "  Python:  http://localhost:8002"
     echo "  PHP:     http://localhost:8003"
     echo "  Java:    http://localhost:8004"
-    echo "  Go:      http://localhost:8005"
     echo "  .NET:    http://localhost:8006"
 }
 

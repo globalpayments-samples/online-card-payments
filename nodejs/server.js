@@ -46,11 +46,11 @@ app.post('/get-access-token', async (req, res) => {
     try {
         const nonce = crypto.randomBytes(16).toString('hex');
         const secret = crypto.createHash('sha512')
-            .update(nonce + process.env.GP_APP_KEY)
+            .update(nonce + process.env.GP_API_APP_KEY)
             .digest('hex');
 
         const tokenRequest = {
-            app_id: process.env.GP_APP_ID,
+            app_id: process.env.GP_API_APP_ID,
             nonce: nonce,
             secret: secret,
             grant_type: 'client_credentials',
@@ -113,8 +113,8 @@ app.post('/process-sale', async (req, res) => {
 
         // Configure Global Payments SDK
         const config = new GpApiConfig();
-        config.appId = process.env.GP_APP_ID;
-        config.appKey = process.env.GP_APP_KEY;
+        config.appId = process.env.GP_API_APP_ID;
+        config.appKey = process.env.GP_API_APP_KEY;
         config.environment = process.env.GP_ENVIRONMENT === 'production'
             ? 'production'
             : 'test';

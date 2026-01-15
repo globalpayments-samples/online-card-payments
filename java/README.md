@@ -23,8 +23,8 @@ This example demonstrates card payment processing using Jakarta EE and the Globa
 2. Copy `.env.sample` to `.env`
 3. Update `.env` with your Global Payments credentials:
    ```
-   PUBLIC_API_KEY=pk_test_xxx
-   SECRET_API_KEY=sk_test_xxx
+   GP_API_APP_ID=your_app_id_here
+   GP_API_APP_KEY=your_app_key_here
    ```
 4. Install dependencies:
    ```bash
