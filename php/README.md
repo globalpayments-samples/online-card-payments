@@ -5,7 +5,7 @@ Complete implementation of Global Payments Drop-In UI for processing Sale transa
 ## Quick Start
 
 ### 1. Get Credentials
-- Register at [Global Payments Developer Portal](https://developer.globalpay.com/)
+- Register at [Global Payments Developer Portal](https://developer.globalpayments.com/)
 - Create a new application
 - Copy your **APP_ID** and **APP_KEY**
 
@@ -371,12 +371,12 @@ ServicesContainer::configureService($config);
 
 ## Support & Resources
 
-- [Global Payments Documentation](https://developer.globalpay.com/)
-- [PHP SDK Documentation](https://developer.globalpay.com/php)
+- [Global Payments Documentation](https://developer.globalpayments.com/)
+- [PHP SDK Documentation](https://developer.globalpayments.com/php)
 - [PHP SDK GitHub](https://github.com/globalpayments/php-sdk)
-- [Drop-In UI Guide](https://developer.globalpay.com/docs/payments/online/drop-in-ui-guide)
-- [API Reference](https://developer.globalpay.com/api)
-- [Support Portal](https://developer.globalpay.com/support)
+- [Drop-In UI Guide](https://developer.globalpayments.com/docs/payments/online/drop-in-ui-guide)
+- [API Reference](https://developer.globalpayments.com/api/references-overview)
+- [Support Portal](https://developer.globalpayments.com/support)
 
 ## License
 
