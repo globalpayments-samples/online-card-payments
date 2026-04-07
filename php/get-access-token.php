@@ -40,8 +40,8 @@ try {
     $dotenv->load();
 
     // Validate required environment variables
-    if (empty($_ENV['GP_APP_ID']) || empty($_ENV['GP_APP_KEY'])) {
-        throw new Exception('Missing required credentials: GP_APP_ID and GP_APP_KEY');
+    if (empty($_ENV['GP_API_APP_ID']) || empty($_ENV['GP_API_APP_KEY'])) {
+        throw new Exception('Missing required credentials: GP_API_APP_ID and GP_API_APP_KEY');
     }
 
     // Generate a unique nonce for security
@@ -51,9 +51,9 @@ try {
     // For Drop-In UI, we need PMT_POST_Create_Single permission for card tokenization
     // This is the exact permission used in the official Global Payments sample
     $requestData = [
-        'app_id' => $_ENV['GP_APP_ID'],
+        'app_id' => $_ENV['GP_API_APP_ID'],
         'nonce' => $nonce,
-        'secret' => hash('sha512', $nonce . $_ENV['GP_APP_KEY']),
+        'secret' => hash('sha512', $nonce . $_ENV['GP_API_APP_KEY']),
         'grant_type' => 'client_credentials',
         'seconds_to_expire' => 600, // 10 minutes
         'permissions' => ['PMT_POST_Create_Single']
