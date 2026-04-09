@@ -3,25 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global Payments - Drop-In UI Sale</title>
+    <title>Global Payments - 3DS2 Payment Example</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://globalpayments-samples.github.io/css/styles.css">
-    <!-- Global Payments Drop-In UI Library -->
-    <script src="https://js.globalpay.com/4.1.11/globalpayments.js"></script>
     <style>
-        .credit-card-card-expiration,
-        .credit-card-card-cvv {
-            margin: 0 !important;
+        #status-message { margin: 12px 0; font-size: 0.9em; color: #555; min-height: 1.2em; }
+        #challenge-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
         }
-        .test-cards-link:hover {
-            background: #0052a3 !important;
+        #challenge-overlay.active { display: flex; }
+        #challenge-box {
+            background: #fff;
+            border-radius: 8px;
+            width: 440px;
+            max-width: 95vw;
+            overflow: hidden;
         }
+        #challenge-header {
+            background: #f5f5f5;
+            padding: 12px 16px;
+            font-size: 0.85em;
+            color: #333;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        #challenge-iframe { width: 100%; height: 400px; border: none; display: block; }
+        .step-indicator { display: flex; gap: 6px; margin: 12px 0; flex-wrap: wrap; }
+        .step { font-size: 0.75em; padding: 3px 8px; border-radius: 12px; background: #e8e8e8; color: #666; }
+        .step.active { background: #1a73e8; color: #fff; }
+        .step.done { background: #34a853; color: #fff; }
     </style>
 </head>
 <body>
-    <!-- Header -->
     <header class="gp-header">
         <div class="gp-container">
             <div class="gp-header-content">
@@ -33,88 +52,152 @@
                 </div>
                 <nav class="gp-header-nav">
                     <a href="https://developer.globalpay.com/">Documentation</a>
-                    <a href="https://developer.globalpay.com/api/references-overview">API Reference</a>
-                    <a href="https://developer.globalpay.com/docs/integration-options/sdk/overview">SDKs</a>
+                    <a href="https://developer.globalpay.com/api">API Reference</a>
+                    <a href="https://developer.globalpay.com/sdks">SDKs</a>
                 </nav>
             </div>
         </div>
     </header>
 
     <div class="gp-container">
-        <!-- Page Title -->
-        <h1 class="gp-page-title" style="text-align: center;">Global Payments Drop-In UI - Sale Transaction</h1>
-        <p class="gp-page-subtitle" style="text-align: center;">Secure payment processing using Global Payments Drop-In UI for instant Sale transactions.</p>
+        <h1 class="gp-page-title">SDK Integration Examples</h1>
+        <p class="gp-page-subtitle">Explore comprehensive examples of Global Payments SDK implementations across different payment scenarios.</p>
 
-        <!-- Payment Form -->
-        <div class="gp-card">
-            <div class="gp-card-header" style="text-align: center;">
-                <h2 class="gp-card-title">Credit Card Payment Form</h2>
-                <p class="gp-card-description">
-                    Complete the form below to process a Sale transaction (authorization + capture).
-                </p>
+        <div class="gp-tabs">
+            <div class="gp-tab-list">
+                <button class="gp-tab-button active" data-tab="payment-form">Payment Form</button>
+                <button class="gp-tab-button" data-tab="tokenization">Tokenization</button>
+                <button class="gp-tab-button" data-tab="webhooks">Webhooks</button>
+                <button class="gp-tab-button" data-tab="recurring">Recurring Payments</button>
             </div>
 
-            <form id="payment-form" class="gp-form" style="max-width: 600px; margin: 0 auto;">
-                <div class="gp-form-group">
-                    <label for="amount" class="gp-label">Amount ($):</label>
-                    <input type="number" id="amount" name="amount" class="gp-input" min="0.01" step="0.01" value="10.00" required>
-                </div>
-
-                <!-- Test Card Helper -->
-                <div class="gp-form-group" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <label for="test-card-select" class="gp-label" style="margin-bottom: 0;">
-                            🧪 Use Test Card for Sandbox:
-                        </label>
-                        <a href="https://developer.globalpay.com/resources/test-cards"
-                           target="_blank"
-                           rel="noopener noreferrer"
-                           class="test-cards-link"
-                           style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #0066cc; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 500; transition: background 0.2s ease;">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                                <polyline points="15 3 21 3 21 9"/>
-                                <line x1="10" y1="14" x2="21" y2="3"/>
-                            </svg>
-                            More Test Cards
-                        </a>
+            <!-- Payment Form Tab -->
+            <div class="gp-tab-content active" id="payment-form">
+                <div class="gp-card">
+                    <div class="gp-card-header">
+                        <h2 class="gp-card-title">3DS2 Secure Payment</h2>
+                        <p class="gp-card-description">
+                            Payment with 3D Secure 2 authentication via Global Payments Drop-In UI tokenization.
+                        </p>
                     </div>
-                    <select id="test-card-select" class="gp-select">
-                        <option value="">Select a test card...</option>
-                        <option value="visa">Visa - 4263970000005262</option>
-                        <option value="mastercard">MasterCard - 5425230000004415</option>
-                        <option value="discover">Discover - 6011000000000087</option>
-                        <option value="amex">American Express - 374101000000608</option>
-                        <option value="jcb">JCB - 3566000000000000</option>
-                        <option value="diners">Diners Club - 36256000000725</option>
-                    </select>
-                    <small style="color: #6c757d; font-size: 12px; margin-top: 4px; display: block;">
-                        Select a test card to auto-fill the payment form for testing.
-                    </small>
-                </div>
 
-                <!-- Test Card Data Display -->
-                <div id="test-card-data" class="gp-hidden" style="background: #e8f4fd; color: #0c5460; border: 1px solid #bee5eb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div>
-                            <strong id="test-card-status">📋 Selected Test Card Data:</strong>
-                            <div id="test-card-details" style="font-family: monospace; margin-top: 12px; padding: 12px; background: #f8f9fa; border-radius: 4px; font-size: 14px;">
-                                <!-- Card details will be inserted here -->
+                    <form id="payment-form-el" class="gp-form">
+                        <div class="gp-form-group">
+                            <label class="gp-label">Card Number:</label>
+                            <div id="card-number"></div>
+                        </div>
+                        <div class="gp-form-group">
+                            <label class="gp-label">Expiry Date:</label>
+                            <div id="card-expiration"></div>
+                        </div>
+                        <div class="gp-form-group">
+                            <label class="gp-label">CVV:</label>
+                            <div id="card-cvv"></div>
+                        </div>
+                        <div class="gp-form-group">
+                            <label class="gp-label">Cardholder Name:</label>
+                            <div id="card-holder-name"></div>
+                        </div>
+
+                        <div id="step-indicator" class="step-indicator" style="display:none;">
+                            <span class="step" id="step-token">1. Tokenize</span>
+                            <span class="step" id="step-enroll">2. Enroll</span>
+                            <span class="step" id="step-auth">3. Auth</span>
+                            <span class="step" id="step-result">4. Result</span>
+                            <span class="step" id="step-charge">5. Charge</span>
+                        </div>
+
+                        <div id="status-message"></div>
+
+                        <button type="submit" id="pay-btn" class="gp-button gp-button-primary gp-button-full" disabled>
+                            Loading payment form…
+                        </button>
+                    </form>
+
+                    <div id="payment-result" style="display:none;"></div>
+                </div>
+            </div>
+
+            <!-- Tokenization Tab -->
+            <div class="gp-tab-content" id="tokenization">
+                <div class="gp-card">
+                    <div class="gp-card-header">
+                        <h2 class="gp-card-title">Card Tokenization</h2>
+                        <p class="gp-card-description">
+                            Securely tokenize payment methods for future use without storing sensitive card data.
+                        </p>
+                    </div>
+                    <div class="gp-alert gp-alert-info">
+                        <strong>Info:</strong> Tokens can be stored securely and used for future transactions without handling raw card data.
+                    </div>
+                    <form id="tokenization-form" class="gp-form">
+                        <div class="gp-form-group">
+                            <label class="gp-label">Card Information for Tokenization:</label>
+                            <div id="credit-card-token"></div>
+                        </div>
+                        <button type="submit" class="gp-button gp-button-primary gp-button-full">Generate Token</button>
+                    </form>
+                    <div id="token-result" class="gp-hidden">
+                        <h3 class="gp-card-title gp-mt-lg">Generated Token:</h3>
+                        <div class="gp-code-block" id="token-display"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Webhooks Tab -->
+            <div class="gp-tab-content" id="webhooks">
+                <div class="gp-card">
+                    <div class="gp-card-header">
+                        <h2 class="gp-card-title">Webhook Integration</h2>
+                        <p class="gp-card-description">Configure and test webhook endpoints for real-time payment notifications.</p>
+                    </div>
+                    <div class="gp-code-block">
+app.post('/webhook', (req, res) => {
+    const signature = req.headers['x-gp-signature'];
+    const payload = req.body;
+    if (verifySignature(payload, signature)) {
+        handlePaymentEvent(payload);
+        res.status(200).send('OK');
+    } else {
+        res.status(400).send('Invalid signature');
+    }
+});
+                    </div>
+                    <div class="gp-alert gp-alert-warning">
+                        <strong>Security:</strong> Always verify webhook signatures to ensure requests are from Global Payments.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recurring Payments Tab -->
+            <div class="gp-tab-content" id="recurring">
+                <div class="gp-card">
+                    <div class="gp-card-header">
+                        <h2 class="gp-card-title">Recurring Payments</h2>
+                        <p class="gp-card-description">Set up subscription billing and recurring payment schedules.</p>
+                    </div>
+                    <form id="recurring-form" class="gp-form">
+                        <div class="gp-form-row">
+                            <div class="gp-form-group">
+                                <label for="subscription-amount" class="gp-label">Monthly Amount ($):</label>
+                                <input type="number" id="subscription-amount" name="subscription-amount" class="gp-input" min="1.00" step="0.01" value="29.99" required>
+                            </div>
+                            <div class="gp-form-group">
+                                <label for="billing-cycle" class="gp-label">Billing Cycle:</label>
+                                <select id="billing-cycle" name="billing-cycle" class="gp-select" required>
+                                    <option value="monthly">Monthly</option>
+                                    <option value="quarterly">Quarterly</option>
+                                    <option value="annually">Annually</option>
+                                </select>
                             </div>
                         </div>
-                        <button type="button" onclick="hideTestCardData()" style="background: none; border: none; font-size: 18px; cursor: pointer; color: #0c5460; padding: 0; margin-left: 16px;">&times;</button>
-                    </div>
+                        <div class="gp-form-group">
+                            <label class="gp-label">Payment Method:</label>
+                            <div id="credit-card-recurring"></div>
+                        </div>
+                        <button type="submit" class="gp-button gp-button-primary gp-button-full">Set Up Subscription</button>
+                    </form>
                 </div>
-
-                <div class="gp-form-group">
-                    <label class="gp-label">Credit Card Information:</label>
-                    <div id="credit-card-form"></div>
-                </div>
-            </form>
-
-            <!-- Result Display -->
-            <div id="result-container" style="display: none; margin-top: 20px;">
-                <div id="result-message" class="gp-alert"></div>
             </div>
         </div>
     </div>
@@ -124,9 +207,7 @@
         <div class="gp-container">
             <div class="gp-footer-content">
                 <div class="gp-footer-section">
-                    <p class="gp-footer-copyright">
-                        © 2025 Global Payments Drop-In UI Demo. All rights reserved.
-                    </p>
+                    <p class="gp-footer-copyright">© 2024 Your Company Name. All rights reserved.</p>
                 </div>
                 <div class="gp-footer-section">
                     <nav class="gp-footer-nav">
@@ -139,234 +220,257 @@
         </div>
     </footer>
 
+    <!-- 3DS2 Challenge overlay -->
+    <div id="challenge-overlay">
+        <div id="challenge-box">
+            <div id="challenge-header">3D Secure Authentication — please complete the verification</div>
+            <iframe id="challenge-iframe" name="gp-3ds-challenge" title="3DS Challenge"></iframe>
+        </div>
+    </div>
+
+    <!-- GlobalPayments Drop-In UI library -->
+    <script src="https://js.globalpay.com/v1.js"></script>
     <script>
-        // Global variables
-        let cardForm;
-        let accessToken;
-
-        // Initialize the payment form
-        function initializePaymentForm() {
-            // Initialize Drop-In UI form
-            cardForm = GlobalPayments.creditCard.form('#credit-card-form', {
-                style: 'gp-default',
-                amount: '10.00',
-                enableSavedPaymentMethods: false // Disable saved payment methods to avoid permission issues
-            });
-
-            // Wait for form to be ready, then set up test card selector
-            cardForm.ready(() => {
-                console.log('Drop-In UI form is ready');
-
-                // Auto-apply stored test card data if available
-                if (window.selectedTestCard) {
-                    const cardData = window.selectedTestCard;
-                    try {
-                        cardForm.frames["card-number"].setValue(cardData.number);
-                        cardForm.frames["card-expiration"].setValue(cardData.expiry.replace('/', ''));
-                        cardForm.frames["card-cvv"].setValue(cardData.cvv);
-                        cardForm.frames["card-holder-name"].setValue('Test User');
-                        console.log('Test card data auto-applied successfully');
-                    } catch (error) {
-                        console.warn('Failed to re-apply test card data:', error);
-                    }
-                }
-            });
-
-            // Handle successful tokenization
-            cardForm.on('token-success', async function(response) {
-                console.log('Token generated:', response.paymentReference);
-
-                // Get amount from form
-                const amount = document.getElementById('amount').value;
-
-                // Submit payment to backend with the access token used for tokenization
-                try {
-                    const paymentResponse = await fetch('process-sale.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            payment_reference: response.paymentReference,
-                            amount: parseFloat(amount),
-                            currency: 'USD',
-
-                        })
-                    });
-
-                    const paymentData = await paymentResponse.json();
-
-                    console.log('Payment response:', paymentData);
-
-                    if (paymentData.success) {
-                        showResult('success', 'Payment Successful! Transaction ID: ' + paymentData.data.transactionId);
-                    } else {
-                        console.error('Payment failed:', paymentData);
-                        showResult('error', 'Payment Failed: ' + (paymentData.error || paymentData.message));
-                    }
-                } catch (error) {
-                    showResult('error', 'Payment processing error: ' + error.message);
-                }
-            });
-
-            // Handle tokenization errors
-            cardForm.on('token-error', function(response) {
-                console.error('Token error:', response);
-                showResult('error', 'Card validation failed: ' + (response.reasons?.[0]?.message || 'Invalid card details'));
-            });
-        }
-
-        // Reset form and reinitialize
-        function resetForm() {
-            try {
-                window.selectedTestCard = null;
-                document.querySelectorAll('#credit-card-form>*').forEach((el) => {
-                    el.parentElement.removeChild(el);
-                });
-                cardForm.dispose();
-                initializePaymentForm();
-            } catch (error) {
-                console.warn('Form reset failed:', error);
-            }
-        }
-
-        // Initialize the Drop-In UI when page loads
-        document.addEventListener('DOMContentLoaded', async function() {
-            try {
-                // Fetch access token from backend
-                const tokenResponse = await fetch('get-access-token.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const tokenData = await tokenResponse.json();
-
-                if (!tokenData.success || !tokenData.token) {
-                    throw new Error('Failed to get access token: ' + (tokenData.error || 'Unknown error'));
-                }
-
-                accessToken = tokenData.token;
-
-                // Configure Global Payments SDK
-                GlobalPayments.configure({
-                    accessToken: accessToken,
-                    apiVersion: '2021-03-22',
-                    env: 'sandbox' // Change to 'production' for live
-                });
-
-                // Initialize the payment form
-                initializePaymentForm();
-
-                // Set up test card selector event listener
-                document.getElementById('test-card-select').addEventListener('change', handleTestCardSelect);
-
-                console.log('Drop-In UI initialized successfully');
-
-            } catch (error) {
-                console.error('Initialization error:', error);
-                showResult('error', 'Failed to initialize payment form: ' + error.message);
-            }
+    // ─── Tab switching ────────────────────────────────────────────────────────
+    document.querySelectorAll('.gp-tab-button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.gp-tab-button').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.gp-tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.tab).classList.add('active');
         });
+    });
 
-        // Note: The Drop-In UI automatically handles form submission via the SUBMIT button
-        // The cardForm.on('token-success') and cardForm.on('token-error') events handle the results
-
-        // Helper function to display results
-        function showResult(type, message) {
-            const resultContainer = document.getElementById('result-container');
-            const resultMessage = document.getElementById('result-message');
-
-            resultMessage.className = 'gp-alert gp-alert-' + (type === 'success' ? 'success' : 'error');
-            resultMessage.innerHTML = '<strong>' + (type === 'success' ? 'Success!' : 'Error!') + '</strong> ' + message;
-
-            resultContainer.style.display = 'block';
-
-            // Scroll to result
-            resultContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+    function setStatus(msg) {
+        document.getElementById('status-message').textContent = msg;
+    }
+    function setStep(id, state) {
+        const el = document.getElementById('step-' + id);
+        if (el) el.className = 'step ' + state;
+    }
+    async function apiPost(path, body) {
+        const res = await fetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!data.success) {
+            const msg = data.error || data.message || 'Request failed';
+            throw Object.assign(new Error(msg), { response: data });
         }
-
-        // Test Cards data
-        const testCards = {
-            visa: {
-                number: '4263970000005262',
-                cvv: '123',
-                expiry: '12/2025'
-            },
-            mastercard: {
-                number: '5425230000004415',
-                cvv: '123',
-                expiry: '12/2025'
-            },
-            discover: {
-                number: '6011000000000087',
-                cvv: '123',
-                expiry: '12/2025'
-            },
-            amex: {
-                number: '374101000000608',
-                cvv: '1234',
-                expiry: '12/2025'
-            },
-            jcb: {
-                number: '3566000000000000',
-                cvv: '123',
-                expiry: '12/2025'
-            },
-            diners: {
-                number: '36256000000725',
-                cvv: '123',
-                expiry: '12/2025'
-            }
+        return data;
+    }
+    function showResult(data) {
+        document.getElementById('payment-result').style.display = 'block';
+        const amt = data.amount ? (parseInt(data.amount, 10) / 100).toFixed(2) : '10.00';
+        document.getElementById('payment-result').innerHTML =
+            `<div class="gp-alert gp-alert-success" style="margin-top:16px;">
+                <strong>Payment Successful!</strong><br>
+                Transaction ID: <code>${data.transaction_id || data.transactionId || ''}</code><br>
+                Status: ${data.status || 'CAPTURED'}<br>
+                Amount: £${amt} GBP
+            </div>`;
+        document.getElementById('payment-form-el').style.display = 'none';
+    }
+    function showError(msg) {
+        setStatus('');
+        document.getElementById('payment-result').style.display = 'block';
+        document.getElementById('payment-result').innerHTML =
+            `<div class="gp-alert gp-alert-error" style="margin-top:16px;"><strong>Error:</strong> ${msg}</div>`;
+        const btn = document.getElementById('pay-btn');
+        btn.disabled = false;
+        btn.textContent = 'Pay £10.00 (3DS2)';
+    }
+    function collectBrowserData() {
+        return {
+            accept_header:        'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            color_depth:          String(screen.colorDepth || 24),
+            ip:                   '123.123.123.123',
+            java_enabled:         String(typeof navigator.javaEnabled === 'function' ? navigator.javaEnabled() : false),
+            javascript_enabled:   'true',
+            language:             navigator.language || 'en-GB',
+            screen_height:        String(screen.height || 1080),
+            screen_width:         String(screen.width  || 1920),
+            challenge_window_size:'FULL_SCREEN',
+            timezone:             String(new Date().getTimezoneOffset()),
+            user_agent:           navigator.userAgent
         };
+    }
 
-        // Handle test card selection
-        function handleTestCardSelect(event) {
-            const selectedCard = event.target.value;
-            if (!selectedCard || !cardForm) return;
+    // ─── 3DS Method (silent iframe, 10 s timeout) ─────────────────────────────
+    function execute3DSMethod(methodUrl, methodData) {
+        return new Promise(resolve => {
+            const iframeName = 'gp-3ds-method-' + Date.now();
+            const iframe = document.createElement('iframe');
+            iframe.name = iframeName;
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
 
-            const cardData = testCards[selectedCard];
-            if (cardData) {
-                try {
-                    resetForm();
-                    window.selectedTestCard = cardData;
-                    showTestCardData(cardData, true);
-                } catch (error) {
-                    console.warn('Test card selection failed:', error);
-                    showTestCardData(cardData, false);
-                }
-                event.target.value = '';
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = methodUrl;
+            form.target  = iframeName;
+            const inp = document.createElement('input');
+            inp.type = 'hidden'; inp.name = 'threeDSMethodData'; inp.value = methodData;
+            form.appendChild(inp);
+            document.body.appendChild(form);
+            form.submit();
+            form.remove();
+
+            setTimeout(() => { try { iframe.remove(); } catch(_) {} resolve(); }, 10000);
+        });
+    }
+
+    // ─── 3DS Challenge (visible iframe) ──────────────────────────────────────
+    function executeChallenge(challengeUrl, acsSignedContent) {
+        return new Promise(resolve => {
+            const overlay = document.getElementById('challenge-overlay');
+            overlay.classList.add('active');
+
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = challengeUrl;
+            form.target = 'gp-3ds-challenge';
+            const inp = document.createElement('input');
+            inp.type = 'hidden'; inp.name = 'creq'; inp.value = acsSignedContent;
+            form.appendChild(inp);
+            document.body.appendChild(form);
+            form.submit();
+            form.remove();
+
+            function cleanup() {
+                window.removeEventListener('message', onMsg);
+                overlay.classList.remove('active');
+                document.getElementById('challenge-iframe').src = 'about:blank';
+                resolve();
             }
+            function onMsg(evt) {
+                try {
+                    const d = typeof evt.data === 'string' ? JSON.parse(evt.data) : evt.data;
+                    if (d && (d.threeDSServerTransID || d.type === 'authResult')) cleanup();
+                } catch (_) {}
+                if (evt.data === '3DS_COMPLETE') cleanup();
+            }
+            window.addEventListener('message', onMsg);
+            setTimeout(cleanup, 300000); // 5-min safety timeout
+        });
+    }
+
+    // ─── Full 3DS2 flow ───────────────────────────────────────────────────────
+    async function run3DS2(paymentToken) {
+        document.getElementById('step-indicator').style.display = 'flex';
+        try {
+            setStep('token', 'done');
+
+            // 1. Enrollment check
+            setStep('enroll', 'active');
+            setStatus('Checking 3DS2 enrollment…');
+            const enroll = await apiPost('/api/check-enrollment', { payment_token: paymentToken });
+            const { server_trans_id, message_version, method_url, method_data } = enroll.data;
+            setStep('enroll', 'done');
+
+            // 2. Silent 3DS method
+            let methodCompletion = 'UNAVAILABLE';
+            if (method_url && method_data) {
+                setStatus('Running 3DS method (background)…');
+                await execute3DSMethod(method_url, method_data);
+                methodCompletion = 'YES';
+            }
+
+            // 3. Initiate auth
+            setStep('auth', 'active');
+            setStatus('Initiating 3DS2 authentication…');
+            const auth = await apiPost('/api/initiate-auth', {
+                payment_token:        paymentToken,
+                server_trans_id,
+                message_version,
+                method_url_completion: methodCompletion,
+                browser_data:         collectBrowserData(),
+                order:                { amount: '10.00', currency: 'GBP' }
+            });
+            setStep('auth', 'done');
+
+            // 4. Challenge (if required)
+            if (auth.data.acs_challenge_url && auth.data.acs_signed_content) {
+                setStatus('3DS2 challenge required — complete the verification in the popup…');
+                await executeChallenge(auth.data.acs_challenge_url, auth.data.acs_signed_content);
+            }
+
+            // 5. Auth result
+            setStep('result', 'active');
+            setStatus('Retrieving authentication result…');
+            const authResult = await apiPost('/api/get-auth-result', {
+                server_trans_id: auth.data.server_trans_id
+            });
+            setStep('result', 'done');
+
+            // 6. Charge
+            setStep('charge', 'active');
+            setStatus('Processing payment…');
+            const payment = await apiPost('/api/authorize-payment', {
+                payment_token: paymentToken,
+                amount:        '10.00',
+                currency:      'GBP',
+                three_ds:      authResult.data
+            });
+            setStep('charge', 'done');
+            setStatus('');
+            showResult(payment.data);
+
+        } catch (err) {
+            console.error('3DS2 error:', err);
+            showError(err.message || 'Unexpected error');
         }
+    }
 
-        // Show test card data in info box
-        function showTestCardData(cardData, autoFillWorked) {
-            const testCardElement = document.getElementById('test-card-data');
-            const statusElement = document.getElementById('test-card-status');
-            const detailsElement = document.getElementById('test-card-details');
+    // ─── Drop-In UI bootstrap ─────────────────────────────────────────────────
+    (async () => {
+        try {
+            setStatus('Loading payment form…');
+            const res  = await fetch('/get-access-token', { method: 'POST' });
+            const data = await res.json();
+            if (!data.success || !data.token) throw new Error(data.error || data.message || 'Token request failed');
 
-            const statusMessage = autoFillWorked ?
-                '✅ Test Card Auto-Filled:' :
-                '📋 Test Card Data - Please Enter Manually:';
+            window.GlobalPayments.configure({ accessToken: data.token, env: 'sandbox' });
 
-            statusElement.textContent = statusMessage;
+            const form = window.GlobalPayments.ui.form({
+                fields: {
+                    'card-number':      { placeholder: '4263970000005262', target: '#card-number' },
+                    'card-expiration':  { placeholder: '12/25',            target: '#card-expiration' },
+                    'card-cvv':         { placeholder: '123',              target: '#card-cvv' },
+                    'card-holder-name': { placeholder: 'Jane Smith',       target: '#card-holder-name' }
+                },
+                style: 'flat',
+                language: 'en'
+            });
 
-            detailsElement.innerHTML = `
-                <strong>Card Number:</strong> ${cardData.number}<br>
-                <strong>Expiration:</strong> ${cardData.expiry}<br>
-                <strong>CVV:</strong> ${cardData.cvv}<br>
-                <strong>Cardholder:</strong> Test User
-            `;
+            form.on('token-success', async resp => {
+                const btn = document.getElementById('pay-btn');
+                btn.disabled = true;
+                btn.textContent = 'Processing…';
+                await run3DS2(resp.paymentReference);
+            });
 
-            testCardElement.classList.remove('gp-hidden');
+            form.on('token-error', err => {
+                showError('Card tokenization failed: ' + (err.message || JSON.stringify(err)));
+            });
+
+            form.on('card-form-complete', () => {
+                const btn = document.getElementById('pay-btn');
+                btn.disabled = false;
+                btn.textContent = 'Pay £10.00 (3DS2)';
+            });
+
+            setStatus('');
+        } catch (err) {
+            document.getElementById('pay-btn').textContent = 'Error — reload page';
+            showError('Failed to initialize payment form: ' + err.message);
         }
+    })();
 
-        // Hide test card data info box
-        function hideTestCardData() {
-            document.getElementById('test-card-data').classList.add('gp-hidden');
-            window.selectedTestCard = null;
-        }
+    document.getElementById('payment-form-el').addEventListener('submit', e => e.preventDefault());
     </script>
 </body>
 </html>
