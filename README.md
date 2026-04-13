@@ -98,7 +98,7 @@ dotnet run
 | Mastercard | 5425 2334 2424 1200 | 123 | Any future |
 | Discover | 6011 0000 0000 0012 | 123 | Any future |
 
-More test cards: [Global Payments Test Cards](https://developer.globalpay.com/resources/test-cards)
+More test cards: [Global Payments Test Cards](https://developer.globalpayments.com/resources/test-cards)
 
 ## 🔧 Configuration
 
@@ -251,10 +251,10 @@ Each implementation has its own detailed README:
 
 ### External Resources
 
-- [Global Payments Documentation](https://developer.globalpay.com/)
-- [Drop-In UI Guide](https://developer.globalpay.com/docs/payments/online/drop-in-ui-guide)
-- [GP-API Reference](https://developer.globalpay.com/api)
-- [Test Cards](https://developer.globalpay.com/resources/test-cards)
+- [Global Payments Documentation](https://developer.globalpayments.com/)
+- [Drop-In UI Guide](https://developer.globalpayments.com/docs/payments/online/drop-in-ui-guide)
+- [GP-API Reference](https://developer.globalpayments.com/api/references-overview)
+- [Test Cards](https://developer.globalpayments.com/resources/test-cards)
 
 ## 🐛 Troubleshooting
 
@@ -278,7 +278,7 @@ Each implementation has its own detailed README:
 ### Getting Help
 
 1. Check language-specific README for detailed troubleshooting
-2. Review [Global Payments Documentation](https://developer.globalpay.com/)
+2. Review [Global Payments Documentation](https://developer.globalpayments.com/)
 3. Check [GitHub Issues](https://github.com/globalpayments)
 
 ## 🔄 Migration from Legacy Portico
