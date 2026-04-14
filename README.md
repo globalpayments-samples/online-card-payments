@@ -4,12 +4,12 @@ Complete implementation of Global Payments Drop-In UI for processing Sale transa
 
 ## 🚀 Available Implementations
 
-| Language | Framework | SDK Version | Port | Status |
-|----------|-----------|-------------|------|--------|
-| [**PHP**](./php/) | Built-in Server | v13.4+ | 8000 | ✅ Complete |
-| [**Node.js**](./nodejs/) | Express.js | v3.10.6+ | 8000 | ✅ Complete |
-| [**Java**](./java/) | Jakarta Servlet | v14.2.20 | 8000 | ✅ Complete |
-| [**.NET**](./dotnet/) | ASP.NET Core | v9.0.16 | 8000 | ✅ Complete |
+| Language | Framework | SDK Version | Status |
+|----------|-----------|-------------|--------|
+| [**PHP**](./php/) | Built-in Server | v13.4+ | ✅ Complete |
+| [**Node.js**](./nodejs/) | Express.js | v3.10.6+ | ✅ Complete |
+| [**Java**](./java/) | Jakarta Servlet | v14.2.20 | ✅ Complete |
+| [**.NET**](./dotnet/) | ASP.NET Core | v9.0.16 | ✅ Complete |
 
 ## 🏗️ Architecture
 
@@ -336,3 +336,13 @@ Built with official Global Payments SDKs:
 - [Node.js SDK](https://github.com/globalpayments/node-sdk)
 - [Java SDK](https://github.com/globalpayments/java-sdk)
 - [.NET SDK](https://github.com/globalpayments/dotnet-sdk)
+
+## Community
+
+- 🌐 **Developer Portal** — [developer.globalpayments.com](https://developer.globalpayments.com)
+- 💬 **Discord** — [Join the community](https://discord.gg/myER9G9qkc)
+- 📋 **GitHub Discussions** — [github.com/globalpayments-samples](https://github.com/globalpayments-samples)
+- 📧 **Newsletter** — [Subscribe](https://www.globalpayments.com/en-gb/modals/newsletter)
+- 💼 **LinkedIn** — [Global Payments for Developers](https://www.linkedin.com/showcase/global-payments-for-developers/posts/?feedView=all)
+
+Have a question or found a bug? [Open an issue](https://github.com/globalpayments-samples/online-card-payments/issues) or reach out at [communityexperience@globalpay.com](mailto:communityexperience@globalpay.com).
