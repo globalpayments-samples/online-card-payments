@@ -4,12 +4,12 @@ Complete implementation of Global Payments Drop-In UI for processing Sale transa
 
 ## 🚀 Available Implementations
 
-| Language | Framework | SDK Version | Port | Status |
-|----------|-----------|-------------|------|--------|
-| [**PHP**](./php/) | Built-in Server | v13.4+ | 8000 | ✅ Complete |
-| [**Node.js**](./nodejs/) | Express.js | v3.10.6+ | 8000 | ✅ Complete |
-| [**Java**](./java/) | Jakarta Servlet | v14.2.20 | 8000 | ✅ Complete |
-| [**.NET**](./dotnet/) | ASP.NET Core | v9.0.16 | 8000 | ✅ Complete |
+| Language | Framework | SDK Version | Status |
+|----------|-----------|-------------|--------|
+| [**PHP**](./php/) | Built-in Server | v13.4+ | ✅ Complete |
+| [**Node.js**](./nodejs/) | Express.js | v3.10.6+ | ✅ Complete |
+| [**Java**](./java/) | Jakarta Servlet | v14.2.20 | ✅ Complete |
+| [**.NET**](./dotnet/) | ASP.NET Core | v9.0.16 | ✅ Complete |
 
 ## 🏗️ Architecture
 
@@ -98,7 +98,7 @@ dotnet run
 | Mastercard | 5425 2334 2424 1200 | 123 | Any future |
 | Discover | 6011 0000 0000 0012 | 123 | Any future |
 
-More test cards: [Global Payments Test Cards](https://developer.globalpay.com/resources/test-cards)
+More test cards: [Global Payments Test Cards](https://developer.globalpayments.com/resources/test-cards)
 
 ## 🔧 Configuration
 
@@ -251,10 +251,10 @@ Each implementation has its own detailed README:
 
 ### External Resources
 
-- [Global Payments Documentation](https://developer.globalpay.com/)
-- [Drop-In UI Guide](https://developer.globalpay.com/docs/payments/online/drop-in-ui-guide)
-- [GP-API Reference](https://developer.globalpay.com/api)
-- [Test Cards](https://developer.globalpay.com/resources/test-cards)
+- [Global Payments Documentation](https://developer.globalpayments.com/)
+- [Drop-In UI Guide](https://developer.globalpayments.com/docs/payments/online/drop-in-ui-guide)
+- [GP-API Reference](https://developer.globalpayments.com/api/references-overview)
+- [Test Cards](https://developer.globalpayments.com/resources/test-cards)
 
 ## 🐛 Troubleshooting
 
@@ -278,7 +278,7 @@ Each implementation has its own detailed README:
 ### Getting Help
 
 1. Check language-specific README for detailed troubleshooting
-2. Review [Global Payments Documentation](https://developer.globalpay.com/)
+2. Review [Global Payments Documentation](https://developer.globalpayments.com/)
 3. Check [GitHub Issues](https://github.com/globalpayments)
 
 ## 🔄 Migration from Legacy Portico
@@ -336,3 +336,13 @@ Built with official Global Payments SDKs:
 - [Node.js SDK](https://github.com/globalpayments/node-sdk)
 - [Java SDK](https://github.com/globalpayments/java-sdk)
 - [.NET SDK](https://github.com/globalpayments/dotnet-sdk)
+
+## Community
+
+- 🌐 **Developer Portal** — [developer.globalpayments.com](https://developer.globalpayments.com)
+- 💬 **Discord** — [Join the community](https://discord.gg/myER9G9qkc)
+- 📋 **GitHub Discussions** — [github.com/orgs/globalpayments/discussions](https://github.com/orgs/globalpayments/discussions)
+- 📧 **Newsletter** — [Subscribe](https://www.globalpayments.com/en-gb/modals/newsletter)
+- 💼 **LinkedIn** — [Global Payments for Developers](https://www.linkedin.com/showcase/global-payments-for-developers/posts/?feedView=all)
+
+Have a question or found a bug? [Open an issue](https://github.com/globalpayments-samples/online-card-payments/issues) or reach out at [communityexperience@globalpay.com](mailto:communityexperience@globalpay.com).
