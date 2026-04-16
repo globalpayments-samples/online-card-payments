@@ -1,108 +1,58 @@
-# .NET Card Payment Example
+# .NET backend
 
-This example demonstrates card payment processing using ASP.NET Core and the Global Payments SDK.
+ASP.NET Core 9 minimal API implementation of the GP-API 3DS2 payment flow.
 
 ## Requirements
 
-- .NET 6.0 or later
-- Global Payments account and API credentials
-
-## Project Structure
-
-- `Program.cs` - Main application file containing server setup and payment processing
-- `wwwroot/index.html` - Client-side payment form
-- `.env.sample` - Template for environment variables
-- `run.sh` - Convenience script to run the application
-- `appsettings.json` - Application configuration file
+- .NET 9 SDK
+- GP-API sandbox credentials
 
 ## Setup
 
-1. Clone this repository
-2. Copy `.env.sample` to `.env`
-3. Update `.env` with your Global Payments credentials:
-   ```
-   PUBLIC_API_KEY=pk_test_xxx
-   SECRET_API_KEY=sk_test_xxx
-   ```
-4. Install dependencies:
-   ```bash
-   dotnet restore
-   ```
-5. Run the application:
-   ```bash
-   ./run.sh
-   ```
-   Or manually:
-   ```bash
-   dotnet run
-   ```
-
-## Implementation Details
-
-### Server Setup
-The application uses ASP.NET Core's minimal API approach to create a lightweight web server that:
-- Serves static files from wwwroot directory
-- Processes payment requests
-- Provides configuration endpoint for client-side SDK
-
-### SDK Configuration
-The Global Payments SDK is configured using environment variables and the PorticoConfig class:
-- Loads credentials from .env file
-- Sets up service URL for API communication
-- Configures developer identification
-
-### Payment Processing
-Payment processing flow:
-1. Client submits payment token and billing zip
-2. Server creates CreditCardData with token
-3. Creates Address with postal code
-4. Processes $10 USD charge
-5. Returns success/error response
-
-### Error Handling
-Implements comprehensive error handling:
-- Catches and processes API exceptions
-- Returns appropriate HTTP status codes
-- Provides meaningful error messages
-
-## API Endpoints
-
-### GET /config
-Returns public API key for client-side SDK initialization.
-
-Response:
-```json
-{
-    "publicApiKey": "pk_test_xxx"
-}
+```bash
+cp .env.sample .env
+# fill in GP_APP_ID, GP_APP_KEY, and the notification URLs
+dotnet restore
+dotnet run
 ```
 
-### POST /process-payment
-Processes a payment using the provided token and billing information.
+Open `http://localhost:8000` to load the payment form.
 
-Request Parameters:
-- `payment_token` (string, required) - Token from client-side SDK
-- `billing_zip` (string, required) - Billing postal code
+## Endpoints
 
-Response (Success):
-```json
-{
-    "message": "Payment successful! Transaction ID: xxx"
-}
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/` | Serves `index.html` |
+| GET | `/api/health` | Health check |
+| POST | `/get-access-token` | PMT token for Drop-In UI |
+| POST | `/api/check-enrollment` | 3DS2 step 1 |
+| POST | `/api/initiate-auth` | 3DS2 step 3 |
+| POST | `/api/get-auth-result` | 3DS2 step 5 |
+| POST | `/api/authorize-payment` | Final SALE charge |
+| GET/POST | `/3ds/method-notification` | Silent iframe callback |
+| GET/POST | `/3ds/challenge-notification` | ACS challenge callback |
+
+## Files
+
+- `Program.cs` — all route handlers and GP-API logic (top-level statements)
+- `Utilities.cs` — `GpPayments.GpUtilities` static class (`ToMinorUnits`, `MapColorDepth`, `MapBool`, `TwoDigitYear`)
+- `wwwroot/index.html` — 3DS2-aware frontend (shared across all backends)
+- `Tests/UtilityTests.cs` — xUnit tests
+
+## Testing
+
+```bash
+dotnet test Tests/Tests.csproj
 ```
 
-Response (Error):
-```json
-{
-    "detail": "Error message"
-}
-```
+52 tests covering utility functions, GP-API enum mappings, and payload structure.
 
-## Security Considerations
+## Notes
 
-This example demonstrates basic implementation. For production use, consider:
-- Implementing additional input validation
-- Adding request rate limiting
-- Including security headers
-- Implementing proper logging
-- Adding payment fraud prevention measures
+The base URL for GP-API does not include `/ucp` in this backend. It is added per-request as part of the path (e.g., `/ucp/authentications`). All four backends reach the same final URLs.
+
+GZIP decompression is handled automatically via `HttpClientHandler { AutomaticDecompression = DecompressionMethods.All }`.
+
+Token state is held in process-level variables (`cachedToken`, `tokenExpiresAt`). This is fine for a single-instance deployment but would need a shared cache for horizontal scaling.
+
+`TwoDigitYear` in `GpUtilities` is available for use but not currently called by any endpoint. It is kept because the unit tests cover it.

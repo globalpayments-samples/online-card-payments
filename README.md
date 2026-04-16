@@ -1,337 +1,189 @@
-# Global Payments Drop-In UI - Sale Transaction (Multi-Language)
+# Online Card Payments with 3DS2
 
-Complete implementation of Global Payments Drop-In UI for processing Sale transactions using the official SDKs across 4 programming languages. All implementations follow the same architecture and use modern GP-API with GpApiConfig.
+Sample implementations of a card payment flow using the Global Payments Drop-In UI and 3DS2 authentication. The same backend is written in four languages so you can pick the one that fits your stack.
 
-## 🚀 Available Implementations
+Available backends: [PHP](./php/), [Node.js](./nodejs/), [Java](./java/), [.NET](./dotnet/)
 
-| Language | Framework | SDK Version | Port | Status |
-|----------|-----------|-------------|------|--------|
-| [**PHP**](./php/) | Built-in Server | v13.4+ | 8000 | ✅ Complete |
-| [**Node.js**](./nodejs/) | Express.js | v3.10.6+ | 8000 | ✅ Complete |
-| [**Java**](./java/) | Jakarta Servlet | v14.2.20 | 8000 | ✅ Complete |
-| [**.NET**](./dotnet/) | ASP.NET Core | v9.0.16 | 8000 | ✅ Complete |
+---
 
-## 🏗️ Architecture
+## How the payment flow works
 
-All implementations use the **same architecture**:
+The Drop-In UI handles card entry in the browser. Your server never sees the raw card number. When the customer submits the form, the card is tokenized on the client side into a payment method token (PMT), which is then passed through a 3DS2 authentication sequence before the final charge.
 
-### Two-Token System
-1. **Tokenization Token** - Generated server-side with `PMT_POST_Create_Single` permission for Drop-In UI
-2. **Transaction Token** - SDK-generated automatically during transaction processing
+The six steps, all driven by the frontend after the initial page load:
 
-### Two API Endpoints
-1. **POST /get-access-token** - Generates access token for Drop-In UI initialization
-2. **POST /process-sale** - Processes Sale transaction using payment reference from Drop-In UI
+1. **Check enrollment** — your server asks GP whether the card is enrolled in 3DS2.
+2. **3DS method** — if the issuer provides a `method_url`, the browser loads it in a hidden iframe to gather device fingerprint data.
+3. **Initiate authentication** — your server submits browser data and receives either a frictionless approval or a challenge requirement.
+4. **ACS challenge** — if a challenge is required, an iframe overlay presents the issuer's authentication page to the cardholder.
+5. **Get auth result** — your server retrieves the final authentication status.
+6. **Authorize payment** — your server submits a SALE transaction with the 3DS2 proof attached.
 
-### Payment Flow
-```
-Browser → /get-access-token → GP API (Tokenization Token)
-   ↓
-Drop-In UI (Card Tokenization - PCI Compliant)
-   ↓
-Browser → /process-sale → SDK → GP API (Sale Transaction)
-   ↓
-Success/Error Response
-```
+---
 
-## ⚡ Quick Start
+## Quick start
 
-### 1. Choose Your Language
+All backends listen on port 8000 by default. Pick one and follow these steps.
+
+**1. Copy and fill in the environment file**
 
 ```bash
-cd php        # or nodejs, java, dotnet
-```
-
-### 2. Configure Credentials
-
-```bash
-# Copy environment template
+cd nodejs    # or php, java, dotnet
 cp .env.sample .env
-
-# Edit .env with your credentials
-GP_APP_ID=your_app_id_here
-GP_APP_KEY=your_app_key_here
-GP_ENVIRONMENT=sandbox
 ```
 
-### 3. Install & Run
+Edit `.env` and fill in at least `GP_APP_ID`, `GP_APP_KEY`, and the notification URLs (see below).
 
-**PHP:**
-```bash
-composer install
-php -S localhost:8000
-```
+**2. Install and run**
 
-**Node.js:**
+Node.js:
 ```bash
 npm install
 npm start
 ```
 
-**Java:**
+PHP:
+```bash
+composer install
+php -S localhost:8000 router.php
+```
+
+Java:
 ```bash
 mvn clean package
 mvn cargo:run
 ```
 
-**.NET:**
+.NET:
 ```bash
 dotnet restore
 dotnet run
 ```
 
-### 4. Test Payment
+**3. Open the browser**
 
-1. Open http://localhost:8000
-2. Enter amount (e.g., 10.00)
-3. Use test card: **4263 9826 4026 9299**
-4. CVV: **123**, Expiry: Any future date
-5. Click **SUBMIT**
-6. Verify success with transaction ID
+Go to `http://localhost:8000` and use one of the test cards below.
 
-## 🧪 Test Cards (Sandbox)
+---
 
-| Brand | Card Number | CVV | Expiry |
-|-------|-------------|-----|--------|
-| Visa | 4263 9826 4026 9299 | 123 | Any future |
-| Visa | 4263 9700 0000 5262 | 123 | Any future |
-| Mastercard | 5425 2334 2424 1200 | 123 | Any future |
-| Discover | 6011 0000 0000 0012 | 123 | Any future |
+## Environment variables
 
-More test cards: [Global Payments Test Cards](https://developer.globalpay.com/resources/test-cards)
+| Variable | Required | Notes |
+|---|---|---|
+| `GP_APP_ID` | yes | From the GP developer portal |
+| `GP_APP_KEY` | yes | From the GP developer portal |
+| `GP_ENVIRONMENT` | yes | `sandbox` or `production` |
+| `GP_MERCHANT_ID` | no | Auto-detected from token if blank |
+| `GP_ACCOUNT_ID` | no | Auto-detected from token if blank |
+| `GP_ACCOUNT_NAME` | no | Leave blank or set to `transaction_processing`. Setting any other value will break authentication. |
+| `METHOD_NOTIFICATION_URL` | yes | Public URL for `/3ds/method-notification` on your server |
+| `CHALLENGE_NOTIFICATION_URL` | yes | Public URL for `/3ds/challenge-notification` on your server |
 
-## 🔧 Configuration
+Both notification URLs must be reachable from the public internet because the ACS (the bank's authentication server) POSTs to them. For local development, expose your server with [ngrok](https://ngrok.com):
 
-All implementations use the same environment variables:
-
-```env
-# Required
-GP_APP_ID=your_app_id_here          # From developer dashboard
-GP_APP_KEY=your_app_key_here        # From developer dashboard
-
-# Optional
-GP_ENVIRONMENT=sandbox              # sandbox or production
-
-# Not Recommended (SDK auto-detects)
-# GP_ACCOUNT_NAME=Transaction_Processing
+```bash
+ngrok http 8000
+# Then set both vars to: https://<your-subdomain>.ngrok.io/3ds/...
 ```
 
-### ⚠️ Important Configuration Notes
+---
 
-1. **Do NOT manually set `GP_ACCOUNT_NAME`** - The SDK automatically detects the correct account from your `APP_ID`/`APP_KEY`
-2. Manually setting the account name can cause "Access token and merchant info do not match" errors
-3. Let the SDK handle account selection for best compatibility
+## Test cards (sandbox)
 
-## 🎨 Features
+| Scenario | Card number |
+|---|---|
+| Frictionless success (no challenge) | 4263 9700 0000 5262 |
+| Challenge required | 4012 0010 3844 3335 |
+| Declined | 4000 1200 0000 1154 |
 
-### Consistent Across All Languages
+Use any future expiry date and any 3-digit CVV. More test cards at [developer.globalpay.com/resources/test-cards](https://developer.globalpay.com/resources/test-cards).
 
-- ✅ **Modern GP-API** - Uses GpApiConfig (not legacy Portico)
-- ✅ **Drop-In UI** - Pre-built payment form from Global Payments
-- ✅ **PCI SAQ A Compliant** - Card data never touches your server
-- ✅ **Two-Token Architecture** - Secure tokenization + transaction flow
-- ✅ **Auto-Configuration** - SDK auto-detects account settings
-- ✅ **Centered UI** - Professional, responsive design
-- ✅ **Error Handling** - Comprehensive error handling
-- ✅ **Test Cards Link** - Elegant button to test cards documentation
+---
 
-### Security
+## Running with Docker
 
-- 🔒 SHA-512 hashing for token generation
-- 🔒 Environment variables for credentials (not in code)
-- 🔒 Drop-In UI handles card input (PCI compliant)
-- 🔒 Token-based authentication
-- 🔒 HTTPS ready for production
+Each backend has an entry in `docker-compose.yml`. Copy and fill in an `.env` file per language first, then start whichever backends you need:
 
-## 📁 Project Structure
-
-Each language implementation follows this structure:
-
-```
-language/
-├── server file          # Main application file
-├── index.html          # Drop-In UI frontend (or in static/webapp/wwwroot)
-├── .env                # Credentials (not tracked in git)
-├── .env.sample         # Configuration template
-├── README.md           # Language-specific documentation
-└── dependencies file   # package.json, requirements.txt, pom.xml, etc.
+```bash
+docker compose up nodejs
+# or php, java, dotnet
+# or all four at once: docker compose up
 ```
 
-### Implementation Files
+Port mappings when all four run simultaneously:
 
-| Language | Server File | HTML Location | Config File |
-|----------|------------|---------------|-------------|
-| PHP | `get-access-token.php`, `process-sale.php` | `index.html` | `composer.json` |
-| Node.js | `server.js` | `index.html` | `package.json` |
-| Java | `ProcessPaymentServlet.java` | `src/main/webapp/index.html` | `pom.xml` |
-| .NET | `Program.cs` | `wwwroot/index.html` | `dotnet.csproj` |
+| Backend | Host port |
+|---|---|
+| Node.js | 8001 |
+| PHP | 8003 |
+| Java | 8004 |
+| .NET | 8006 |
 
-## 🔍 Technical Details
+---
 
-### Endpoint Implementation
+## Running the tests
 
-**Get Access Token:**
-```
-POST /get-access-token
-Response: { "success": true, "token": "...", "expiresIn": 600 }
-```
+Unit tests cover utility functions and GP-API payload mapping (color depth enums, boolean uppercasing, payload field placement, notification endpoint contracts).
 
-**Process Sale:**
-```
-POST /process-sale
-Body: { "payment_reference": "PMT_...", "amount": 10.00, "currency": "USD" }
-Response: { "success": true, "message": "Payment successful!", "data": {...} }
-```
+```bash
+# Node.js
+cd nodejs && npm test
 
-### SDK Configuration Pattern
+# PHP
+cd php && ./vendor/bin/phpunit
 
-All implementations use this pattern:
+# .NET
+dotnet test dotnet/Tests/Tests.csproj
 
-```javascript
-// Conceptual example
-config = new GpApiConfig()
-config.appId = GP_APP_ID
-config.appKey = GP_APP_KEY
-config.environment = GP_ENVIRONMENT
-config.channel = CardNotPresent
-config.country = "US"
-// Note: Don't set account name - SDK auto-detects
-
-ServicesContainer.configure(config)
+# Java
+mvn -f java/pom.xml test
 ```
 
-## 🚀 Production Deployment
+An integration test runner is also included at `tests/integration/run-integration-tests.sh`. It requires a running backend and real sandbox credentials since it calls live GP-API endpoints.
 
-### 1. Update Configuration
-
-```env
-GP_ENVIRONMENT=production
+```bash
+BASE_URL=http://localhost:8000 bash tests/integration/run-integration-tests.sh
 ```
 
-### 2. Update Frontend
+---
 
-In `index.html`, change Drop-In UI environment:
+## Project structure
 
-```javascript
-GlobalPayments.configure({
-  accessToken: accessToken,
-  apiVersion: '2021-03-22',
-  env: 'production'  // Change from 'sandbox'
-});
+```
+.
+├── index.html                  shared frontend (language-agnostic)
+├── docker-compose.yml
+├── tests/integration/          curl-based integration test runner
+├── nodejs/
+│   ├── server.js               Express backend
+│   ├── auth.js                 token cache module
+│   ├── index.html
+│   └── tests/unit/
+├── php/
+│   ├── router.php
+│   ├── get-access-token.php
+│   ├── api/                    one file per endpoint
+│   ├── src/GpApiClient.php     HTTP client with token cache
+│   ├── index.html
+│   └── tests/unit/
+├── java/
+│   └── src/main/java/.../
+│       ├── GpApi3dsServlet.java     3DS2 endpoints
+│       └── ProcessPaymentServlet.java
+├── dotnet/
+│   ├── Program.cs
+│   ├── Utilities.cs            ToMinorUnits, MapColorDepth, MapBool
+│   └── Tests/
+└── online-card-payments.sln
 ```
 
-### 3. Security Checklist
+---
 
-- [ ] Use production credentials
-- [ ] Enable HTTPS/SSL
-- [ ] Configure CORS for your domain
-- [ ] Set up rate limiting
-- [ ] Enable logging and monitoring
-- [ ] Review error handling (don't expose sensitive details)
-- [ ] Test with production credentials in sandbox first
-- [ ] Use production web server (not development server)
+## Resources
 
-### 4. Server Recommendations
-
-- **PHP:** Use Apache/Nginx with PHP-FPM
-- **Node.js:** Use PM2 or similar process manager
-- **Java:** Use Tomcat or similar servlet container
-- **.NET:** Use Kestrel behind reverse proxy (Nginx/IIS)
-
-## 📖 Documentation
-
-### Per-Language READMEs
-
-Each implementation has its own detailed README:
-
-- [PHP README](./php/README.md) - Comprehensive PHP documentation
-- [Node.js README](./nodejs/README.md) - Node.js specific guide
-- [Java README](./java/README.md) - Java/Maven documentation
-- [.NET README](./dotnet/README.md) - .NET Core guide
-
-### External Resources
-
-- [Global Payments Documentation](https://developer.globalpay.com/)
-- [Drop-In UI Guide](https://developer.globalpay.com/docs/payments/online/drop-in-ui-guide)
-- [GP-API Reference](https://developer.globalpay.com/api)
-- [Test Cards](https://developer.globalpay.com/resources/test-cards)
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**"Access token and merchant info do not match"**
-- **Solution:** Comment out `GP_ACCOUNT_NAME` in `.env` file. Let SDK auto-detect.
-
-**"Failed to generate access token"**
-- **Solution:** Verify `GP_APP_ID` and `GP_APP_KEY` are correct in `.env` file.
-
-**Drop-In UI not loading**
-- **Solution:** Check browser console for errors. Verify access token is generated successfully.
-
-**Transaction declined**
-- **Solution:** Ensure using test cards in sandbox. Verify amount > 0.
-
-**Server won't start**
-- **Solution:** Check if port 8000 is already in use. Verify dependencies are installed.
-
-### Getting Help
-
-1. Check language-specific README for detailed troubleshooting
-2. Review [Global Payments Documentation](https://developer.globalpay.com/)
-3. Check [GitHub Issues](https://github.com/globalpayments)
-
-## 🔄 Migration from Legacy Portico
-
-This project uses modern **GP-API** with **GpApiConfig** (not legacy Portico/Heartland API).
-
-### Key Differences
-
-| Legacy (Portico) | Modern (GP-API) |
-|------------------|-----------------|
-| PorticoConfig | GpApiConfig |
-| SECRET_API_KEY | GP_APP_ID + GP_APP_KEY |
-| Manual account config | Auto-detection |
-| Basic forms | Drop-In UI |
-
-If migrating from Portico, see the commit history on the `rewriting-implementations` branch for migration patterns.
-
-## 📊 Project Stats
-
-- **4 Languages:** PHP, Node.js, Java, .NET
-- **100% Feature Parity:** All implementations identical
-- **PCI Compliant:** SAQ A level compliance
-- **Production Ready:** Comprehensive error handling
-- **Well Documented:** Complete READMEs for each language
-
-## 📄 License
-
-MIT License
-
-## 🙋 Contributing
-
-Each language implementation follows the same architecture. When contributing:
-
-1. Maintain consistency across all languages
-2. Update all language implementations for feature additions
-3. Keep .env.sample files identical
-4. Ensure Drop-In UI integration remains consistent
-5. Test with sandbox credentials before committing
-
-## 🎯 Roadmap
-
-Potential future enhancements:
-
-- [ ] Authorization (pre-auth) transactions
-- [ ] Refund processing
-- [ ] Recurring payments/subscriptions
-- [ ] Multi-currency support
-- [ ] Webhook handling for payment notifications
-- [ ] Payment method management (save cards)
-
-## ⭐ Acknowledgments
-
-Built with official Global Payments SDKs:
+- [Global Payments developer portal](https://developer.globalpay.com/)
+- [Drop-In UI guide](https://developer.globalpay.com/docs/payments/online/drop-in-ui-guide)
+- [GP-API reference](https://developer.globalpay.com/api)
 - [PHP SDK](https://github.com/globalpayments/php-sdk)
 - [Node.js SDK](https://github.com/globalpayments/node-sdk)
 - [Java SDK](https://github.com/globalpayments/java-sdk)

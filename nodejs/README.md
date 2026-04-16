@@ -1,112 +1,55 @@
-# Node.js Card Payment Example
+# Node.js backend
 
-This example demonstrates card payment processing using Express.js and the Global Payments SDK.
+Express 4 implementation of the GP-API 3DS2 payment flow.
 
 ## Requirements
 
-- Node.js 14.x or later
-- npm (Node Package Manager)
-- Global Payments account and API credentials
-
-## Project Structure
-
-- `server.js` - Main application file containing server setup and payment processing
-- `index.html` - Client-side payment form
-- `package.json` - Project dependencies and scripts
-- `.env.sample` - Template for environment variables
-- `run.sh` - Convenience script to run the application
+- Node.js 18 or later
+- npm
+- GP-API sandbox credentials
 
 ## Setup
 
-1. Clone this repository
-2. Copy `.env.sample` to `.env`
-3. Update `.env` with your Global Payments credentials:
-   ```
-   PUBLIC_API_KEY=pk_test_xxx
-   SECRET_API_KEY=sk_test_xxx
-   ```
-4. Install dependencies:
-   ```bash
-   npm install
-   ```
-5. Run the application:
-   ```bash
-   ./run.sh
-   ```
-   Or manually:
-   ```bash
-   node server.js
-   ```
-
-## Implementation Details
-
-### Server Setup
-The application uses Express.js to create a web server that:
-- Serves static files
-- Processes payment requests
-- Provides configuration endpoint for client-side SDK
-- Handles JSON and form-encoded requests
-
-### SDK Configuration
-Global Payments SDK configuration using environment variables:
-- Loads credentials from .env file
-- Sets up service URL for API communication
-- Configures developer identification
-
-### Payment Processing
-Payment processing flow:
-1. Client submits payment token and billing zip
-2. Server creates CreditCardData with token
-3. Creates Address with postal code
-4. Processes $10 USD charge
-5. Returns success/error response
-
-### Error Handling
-Implements comprehensive error handling:
-- Catches and processes API exceptions
-- Differentiates between API and general errors
-- Returns appropriate error messages
-
-## API Endpoints
-
-### GET /config
-Returns public API key for client-side SDK initialization.
-
-Response:
-```json
-{
-    "publicApiKey": "pk_test_xxx"
-}
+```bash
+cp .env.sample .env
+# fill in GP_APP_ID, GP_APP_KEY, and the notification URLs
+npm install
+npm start
 ```
 
-### POST /process-payment
-Processes a payment using the provided token and billing information.
+The server starts on port 8000 by default. Open `http://localhost:8000` to load the payment form.
 
-Request Parameters:
-- `payment_token` (string, required) - Token from client-side SDK
-- `billing_zip` (string, required) - Billing postal code
+## Endpoints
 
-Response (Success):
-```
-Payment successful! Transaction ID: xxx
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/` | Serves `index.html` |
+| GET | `/api/health` | Health check |
+| POST | `/get-access-token` | PMT token for Drop-In UI |
+| POST | `/api/check-enrollment` | 3DS2 step 1 |
+| POST | `/api/initiate-auth` | 3DS2 step 3 |
+| POST | `/api/get-auth-result` | 3DS2 step 5 |
+| POST | `/api/authorize-payment` | Final SALE charge |
+| GET/POST | `/3ds/method-notification` | Silent iframe callback |
+| GET/POST | `/3ds/challenge-notification` | ACS challenge callback |
+
+## Files
+
+- `server.js` — all route handlers and GP-API logic
+- `auth.js` — access token generation and caching
+- `index.html` — 3DS2-aware frontend (shared across all backends)
+- `tests/unit/` — Jest unit tests
+
+## Testing
+
+```bash
+npm test
 ```
 
-Response (Error):
-```
-API Error: [error message]
-```
-or
-```
-Error: [error message]
-```
+67 tests covering token caching, utility functions, GP-API enum mappings, payload structure, and notification endpoint contracts.
 
-## Security Considerations
+## Notes
 
-This example demonstrates basic implementation. For production use, consider:
-- Implementing additional input validation
-- Adding request rate limiting
-- Including security headers
-- Implementing proper logging
-- Adding payment fraud prevention measures
-- Using HTTPS in production
-- Configuring Cross-Origin Resource Sharing (CORS) appropriately
+The module uses ES modules (`"type": "module"` in `package.json`). Jest requires `--experimental-vm-modules` to run, which the `npm test` script sets automatically.
+
+Token state is held in memory at the module level in `auth.js`. A single process handles all requests, so there are no concurrency concerns. In a multi-process deployment you would want a shared cache.

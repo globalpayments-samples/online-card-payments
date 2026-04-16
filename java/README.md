@@ -1,107 +1,57 @@
-# Java Card Payment Example
+# Java backend
 
-This example demonstrates card payment processing using Jakarta EE and the Global Payments SDK.
+Jakarta Servlet 5 / Tomcat 10 implementation of the GP-API 3DS2 payment flow.
 
 ## Requirements
 
 - Java 11 or later
-- Maven
-- Global Payments account and API credentials
-
-## Project Structure
-
-- `src/main/java/com/globalpayments/example/ProcessPaymentServlet.java` - Main servlet handling payment processing
-- `src/main/webapp/index.html` - Client-side payment form
-- `src/main/webapp/WEB-INF/web.xml` - Web application configuration
-- `.env.sample` - Template for environment variables
-- `pom.xml` - Project dependencies and build configuration
-- `run.sh` - Convenience script to run the application
+- Maven 3.6 or later
+- GP-API sandbox credentials
 
 ## Setup
 
-1. Clone this repository
-2. Copy `.env.sample` to `.env`
-3. Update `.env` with your Global Payments credentials:
-   ```
-   PUBLIC_API_KEY=pk_test_xxx
-   SECRET_API_KEY=sk_test_xxx
-   ```
-4. Install dependencies:
-   ```bash
-   mvn clean install
-   ```
-5. Run the application:
-   ```bash
-   ./run.sh
-   ```
-   Or manually:
-   ```bash
-   mvn jetty:run
-   ```
-
-## Implementation Details
-
-### Servlet Configuration
-The application uses Jakarta EE servlets to:
-- Handle payment processing requests
-- Serve configuration data
-- Process form submissions
-
-### SDK Configuration
-Global Payments SDK configuration is handled in the servlet's init method:
-- Loads credentials from .env file
-- Sets up service URL for API communication
-- Configures developer identification
-
-### Payment Processing
-Payment processing flow:
-1. Client submits payment token and billing zip
-2. Server creates CreditCardData with token
-3. Creates Address with postal code
-4. Processes $10 USD charge
-5. Returns success/error response
-
-### Error Handling
-Implements comprehensive error handling:
-- Catches and processes API exceptions
-- Returns appropriate HTTP status codes
-- Provides meaningful error messages
-
-## API Endpoints
-
-### GET /public-key
-Returns public API key for client-side SDK initialization.
-
-Response:
-```json
-{
-    "publicApiKey": "pk_test_xxx"
-}
+```bash
+cp .env.sample .env
+# fill in GP_APP_ID, GP_APP_KEY, and the notification URLs
+mvn clean package
+mvn cargo:run
 ```
 
-### POST /process-payment
-Processes a payment using the provided token and billing information.
+Open `http://localhost:8000` to load the payment form.
 
-Request Parameters:
-- `payment_token` (string, required) - Token from client-side SDK
-- `billing_zip` (string, required) - Billing postal code
+## Endpoints
 
-Response (Success):
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/` | Serves `index.html` |
+| GET | `/api/health` | Health check |
+| POST | `/get-access-token` | PMT token for Drop-In UI |
+| POST | `/api/check-enrollment` | 3DS2 step 1 |
+| POST | `/api/initiate-auth` | 3DS2 step 3 |
+| POST | `/api/get-auth-result` | 3DS2 step 5 |
+| POST | `/api/authorize-payment` | Final SALE charge |
+| GET/POST | `/3ds/method-notification` | Silent iframe callback |
+| GET/POST | `/3ds/challenge-notification` | ACS challenge callback |
+
+## Files
+
+- `src/main/java/.../GpApi3dsServlet.java` — all 3DS2 and payment endpoints
+- `src/main/java/.../ProcessPaymentServlet.java` — access token endpoint
+- `src/main/webapp/index.html` — 3DS2-aware frontend (shared across all backends)
+- `src/test/java/.../GpApi3dsServletTest.java` — JUnit 5 tests
+
+## Testing
+
+```bash
+mvn test
 ```
-Payment successful! Transaction ID: xxx
-```
 
-Response (Error):
-```
-Error: [error message]
-```
+42 tests covering utility functions, GP-API enum mappings, payload structure, and CORS header values. Private static methods are tested via reflection.
 
-## Security Considerations
+## Notes
 
-This example demonstrates basic implementation. For production use, consider:
-- Implementing additional input validation
-- Adding request rate limiting
-- Including security headers
-- Implementing proper logging
-- Adding payment fraud prevention measures
-- Configuring secure session management
+Token caching uses `static volatile` fields on `ProcessPaymentServlet` with a `ReentrantLock` for thread safety.
+
+GP-API responses are GZIP-compressed. The servlet decodes them manually using `java.util.zip.GZIPInputStream`.
+
+The notification endpoints must be routed before the request body is read as JSON. The ACS POSTs form-encoded data (`cres=...`), not a JSON body, so reading the body as JSON first would throw an exception. `doPost` checks the path before calling `req.getReader()`.
