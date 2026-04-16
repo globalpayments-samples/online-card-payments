@@ -91,11 +91,8 @@ async Task<(JsonElement root, bool ok, int status)> GpRequest(string method, str
     return (root, resp.IsSuccessStatusCode, (int)resp.StatusCode);
 }
 
-static string ToMinorUnits(string amount) =>
-    ((int)Math.Round(double.Parse(amount) * 100)).ToString();
-
-static string TwoDigitYear(string year) =>
-    year.Length > 2 ? year[^2..] : year;
+static string ToMinorUnits(string amount) => GpPayments.GpUtilities.ToMinorUnits(amount);
+static string TwoDigitYear(string year)   => GpPayments.GpUtilities.TwoDigitYear(year);
 
 IResult GpError(JsonElement root, int status)
 {
