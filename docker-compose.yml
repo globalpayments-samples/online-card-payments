@@ -94,9 +94,6 @@ services:
       - DOTNET_BASE_URL=http://dotnet:8000
     networks:
       - payments
-    volumes:
-      - ./test-results:/app/test-results
-      - ./playwright-report:/app/playwright-report
     profiles:
       - testing
 

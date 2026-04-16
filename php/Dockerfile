@@ -2,25 +2,25 @@ FROM php:8.3-cli
 
 WORKDIR /app
 
-# Install system dependencies and PHP extensions
+# System libraries required by the GP PHP SDK extensions
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     git \
     unzip \
-    libzip-dev \
+    wget \
+    libicu-dev \
     libxml2-dev \
     libcurl4-openssl-dev \
     && docker-php-ext-install \
-    zip \
+    intl \
     dom \
     curl \
-    intl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+COPY --from=docker.io/library/composer:latest /usr/bin/composer /usr/bin/composer
 
-# Copy composer files and install dependencies
+# Copy composer files and install production dependencies only
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
@@ -33,4 +33,4 @@ USER app
 
 EXPOSE 8000
 
-CMD ["php", "-S", "0.0.0.0:8000"]
+CMD ["php", "-S", "0.0.0.0:8000", "router.php"]
