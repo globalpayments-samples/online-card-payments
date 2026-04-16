@@ -1,3 +1,6 @@
 php/.env.backup
 .vscode/settings.json
 CLAUDE.md
+CODEX_REVIEW.md
+.codex
+php/.phpunit.result.cache
