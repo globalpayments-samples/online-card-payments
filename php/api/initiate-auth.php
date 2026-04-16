@@ -22,20 +22,12 @@ $browserData              = $input['browser_data']                 ?? [];
 $order                    = $input['order']                        ?? [];
 $amount                   = $order['amount']                       ?? '10.00';
 $currency                 = $order['currency']                     ?? 'GBP';
+$flowNonce                = $input['flow_nonce']                   ?? '';
+$iaNonceQuery             = $flowNonce ? ('?nonce=' . urlencode($flowNonce)) : '';
 
 if (!$serverTransId) {
     GpApiClient::jsonResponse(['success' => false, 'error' => 'server_trans_id is required'], 400);
     exit;
-}
-
-function mapColorDepth(string $v): string {
-    $map = [1=>'ONE_BIT',2=>'TWO_BITS',4=>'FOUR_BITS',8=>'EIGHT_BITS',
-            15=>'FIFTEEN_BITS',16=>'SIXTEEN_BITS',24=>'TWENTY_FOUR_BITS',
-            32=>'THIRTY_TWO_BITS',48=>'FORTY_EIGHT_BITS'];
-    return $map[(int)$v] ?? 'TWENTY_FOUR_BITS';
-}
-function mapBool(string $v): string {
-    return strtolower($v) === 'true' ? 'TRUE' : 'FALSE';
 }
 
 try {
@@ -77,10 +69,10 @@ try {
         ],
         'browser_data' => [
             'accept_header'        => $browserData['accept_header']         ?? 'text/html,application/xhtml+xml',
-            'color_depth'          => mapColorDepth((string)($browserData['color_depth']        ?? '24')),
+            'color_depth'          => GpApiClient::mapColorDepth((string)($browserData['color_depth']        ?? '24')),
             'ip'                   => $browserData['ip']                    ?? '123.123.123.123',
-            'java_enabled'         => mapBool((string)($browserData['java_enabled']       ?? 'false')),
-            'javascript_enabled'   => mapBool((string)($browserData['javascript_enabled'] ?? 'true')),
+            'java_enabled'         => GpApiClient::mapBool((string)($browserData['java_enabled']       ?? 'false')),
+            'javascript_enabled'   => GpApiClient::mapBool((string)($browserData['javascript_enabled'] ?? 'true')),
             'language'             => $browserData['language']              ?? 'en-GB',
             'screen_height'        => (string) ($browserData['screen_height']      ?? '1080'),
             'screen_width'         => (string) ($browserData['screen_width']       ?? '1920'),
@@ -89,8 +81,8 @@ try {
             'user_agent'           => $browserData['user_agent']            ?? 'Mozilla/5.0',
         ],
         'notifications' => [
-            'challenge_return_url'       => getenv('CHALLENGE_NOTIFICATION_URL') ?: null,
-            'three_ds_method_return_url' => getenv('METHOD_NOTIFICATION_URL')    ?: null,
+            'challenge_return_url'       => ((getenv('CHALLENGE_NOTIFICATION_URL') ?: null) ? (getenv('CHALLENGE_NOTIFICATION_URL') . $iaNonceQuery) : null),
+            'three_ds_method_return_url' => ((getenv('METHOD_NOTIFICATION_URL')    ?: null) ? (getenv('METHOD_NOTIFICATION_URL')    . $iaNonceQuery) : null),
         ],
     ]);
 

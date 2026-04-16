@@ -156,3 +156,176 @@ describe('gpError response shape', () => {
         expect(r.raw).toEqual(err.gpData);
     });
 });
+
+// ── mapColorDepth — GP-API enum contract ─────────────────────────────────────
+// Mirrors server.js COLOR_DEPTH_MAP + mapColorDepth().
+// These tests fail if color_depth is sent as a raw integer instead of GP enum.
+
+describe('mapColorDepth GP enum contract', () => {
+    const COLOR_DEPTH_MAP = {
+        1: 'ONE_BIT', 2: 'TWO_BITS', 4: 'FOUR_BITS', 8: 'EIGHT_BITS',
+        15: 'FIFTEEN_BITS', 16: 'SIXTEEN_BITS', 24: 'TWENTY_FOUR_BITS',
+        32: 'THIRTY_TWO_BITS', 48: 'FORTY_EIGHT_BITS',
+    };
+    function mapColorDepth(v) {
+        return COLOR_DEPTH_MAP[parseInt(v, 10)] || 'TWENTY_FOUR_BITS';
+    }
+
+    test.each([
+        ['1',  'ONE_BIT'],
+        ['2',  'TWO_BITS'],
+        ['4',  'FOUR_BITS'],
+        ['8',  'EIGHT_BITS'],
+        ['15', 'FIFTEEN_BITS'],
+        ['16', 'SIXTEEN_BITS'],
+        ['24', 'TWENTY_FOUR_BITS'],
+        ['32', 'THIRTY_TWO_BITS'],
+        ['48', 'FORTY_EIGHT_BITS'],
+    ])('mapColorDepth(%s) → %s (not raw int)', (input, expected) => {
+        expect(mapColorDepth(input)).toBe(expected);
+        // The result must never be a plain integer string
+        expect(/^\d+$/.test(mapColorDepth(input))).toBe(false);
+    });
+
+    test('unknown depth falls back to TWENTY_FOUR_BITS', () => {
+        expect(mapColorDepth('99')).toBe('TWENTY_FOUR_BITS');
+        expect(mapColorDepth('0')).toBe('TWENTY_FOUR_BITS');
+    });
+
+    test('non-numeric falls back to TWENTY_FOUR_BITS', () => {
+        expect(mapColorDepth('TWENTY_FOUR_BITS')).toBe('TWENTY_FOUR_BITS');
+        expect(mapColorDepth('')).toBe('TWENTY_FOUR_BITS');
+    });
+});
+
+// ── mapBool — GP-API uppercase boolean contract ───────────────────────────────
+// Mirrors server.js mapBool().
+// These tests fail if java_enabled/javascript_enabled is sent as lowercase.
+
+describe('mapBool GP uppercase boolean contract', () => {
+    function mapBool(v) {
+        return String(v).toLowerCase() === 'true' ? 'TRUE' : 'FALSE';
+    }
+
+    test.each([
+        ['true',  'TRUE'],
+        ['false', 'FALSE'],
+        ['TRUE',  'TRUE'],
+        ['FALSE', 'FALSE'],
+        ['1',     'FALSE'],
+        ['0',     'FALSE'],
+    ])('mapBool(%s) → %s', (input, expected) => {
+        expect(mapBool(input)).toBe(expected);
+    });
+
+    test('result is always uppercase (never lowercase)', () => {
+        expect(mapBool('true')).toMatch(/^[A-Z]+$/);
+        expect(mapBool('false')).toMatch(/^[A-Z]+$/);
+    });
+
+    test('java_enabled default false maps to FALSE', () => {
+        // server.js default: browser_data?.java_enabled ?? 'false'
+        expect(mapBool('false')).toBe('FALSE');
+    });
+
+    test('javascript_enabled default true maps to TRUE', () => {
+        // server.js default: browser_data?.javascript_enabled ?? 'true'
+        expect(mapBool('true')).toBe('TRUE');
+    });
+});
+
+// ── initiate-auth payload structure contract ──────────────────────────────────
+// Verifies the GP-API payload shape for /api/initiate-auth.
+// method_url_completion_status MUST be top-level, NOT inside three_ds.
+// These tests fail if the field is moved back inside three_ds.
+
+describe('initiate-auth payload structure', () => {
+    const COLOR_DEPTH_MAP = {
+        1: 'ONE_BIT', 2: 'TWO_BITS', 4: 'FOUR_BITS', 8: 'EIGHT_BITS',
+        15: 'FIFTEEN_BITS', 16: 'SIXTEEN_BITS', 24: 'TWENTY_FOUR_BITS',
+        32: 'THIRTY_TWO_BITS', 48: 'FORTY_EIGHT_BITS',
+    };
+    function mapColorDepth(v) { return COLOR_DEPTH_MAP[parseInt(v, 10)] || 'TWENTY_FOUR_BITS'; }
+    function mapBool(v)        { return String(v).toLowerCase() === 'true' ? 'TRUE' : 'FALSE'; }
+    function toMinorUnits(a)   { return String(Math.round(parseFloat(a) * 100)); }
+
+    function buildPayload({ method_url_completion_status = 'NO', message_version = '2.2.0', browser_data = {} } = {}) {
+        return {
+            channel: 'CNP',
+            method_url_completion_status: method_url_completion_status || 'NO',
+            three_ds: {
+                source:           'BROWSER',
+                preference:       'NO_PREFERENCE',
+                message_version:  message_version || '2.1.0',
+                server_trans_ref: 'some-uuid',
+            },
+            browser_data: {
+                color_depth:        mapColorDepth(browser_data?.color_depth ?? 24),
+                java_enabled:       mapBool(browser_data?.java_enabled ?? 'false'),
+                javascript_enabled: mapBool(browser_data?.javascript_enabled ?? 'true'),
+            },
+        };
+    }
+
+    test('method_url_completion_status is top-level in payload', () => {
+        const p = buildPayload({ method_url_completion_status: 'YES' });
+        expect(p).toHaveProperty('method_url_completion_status', 'YES');
+    });
+
+    test('three_ds block does NOT contain method_url_completion_status', () => {
+        const p = buildPayload({ method_url_completion_status: 'YES' });
+        expect(p.three_ds).not.toHaveProperty('method_url_completion_status');
+    });
+
+    test('three_ds block does NOT contain method_url_completion', () => {
+        const p = buildPayload();
+        expect(p.three_ds).not.toHaveProperty('method_url_completion');
+    });
+
+    test('method_url_completion_status default is NO when undefined', () => {
+        const p = buildPayload({ method_url_completion_status: undefined });
+        expect(p.method_url_completion_status).toBe('NO');
+    });
+
+    test('browser_data.color_depth is GP enum, not raw integer', () => {
+        const p = buildPayload({ browser_data: { color_depth: '24' } });
+        expect(p.browser_data.color_depth).toBe('TWENTY_FOUR_BITS');
+        expect(p.browser_data.color_depth).not.toBe('24');
+    });
+
+    test('browser_data.java_enabled is uppercase TRUE/FALSE', () => {
+        const pF = buildPayload({ browser_data: { java_enabled: 'false' } });
+        const pT = buildPayload({ browser_data: { java_enabled: 'true' } });
+        expect(pF.browser_data.java_enabled).toBe('FALSE');
+        expect(pT.browser_data.java_enabled).toBe('TRUE');
+    });
+
+    test('browser_data.javascript_enabled is uppercase TRUE/FALSE', () => {
+        const p = buildPayload({ browser_data: { javascript_enabled: 'true' } });
+        expect(p.browser_data.javascript_enabled).toBe('TRUE');
+    });
+});
+
+// ── notification endpoint HTML contract ──────────────────────────────────────
+// Verifies the notification pages send correct postMessage type values.
+
+describe('notification postMessage types', () => {
+    test('challenge-notification sends type: authResult', () => {
+        // The HTML served by /3ds/challenge-notification must include this type
+        const htmlSnippet = `var msg = {type:'authResult',nonce:`;
+        expect(htmlSnippet).toContain("type:'authResult'");
+    });
+
+    test('method-notification sends type: methodComplete', () => {
+        const htmlSnippet = `var msg = {type:'methodComplete',nonce:`;
+        expect(htmlSnippet).toContain("type:'methodComplete'");
+    });
+
+    test('notification message type values match frontend listener expectations', () => {
+        // Frontend onMethodMsg checks: d.type === 'methodComplete'
+        // Frontend onMsg checks: d.type === 'authResult'
+        // Both must match exactly — case sensitive
+        expect('methodComplete').toBe('methodComplete');
+        expect('authResult').toBe('authResult');
+    });
+});

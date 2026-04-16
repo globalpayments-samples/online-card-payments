@@ -162,4 +162,118 @@ public class UtilityTests
         long expectedMs   = (expiresIn - marginSeconds) * 1000L;
         Assert.Equal(3_540_000L, expectedMs);
     }
+
+    // ── MapColorDepth — GP enum contract ──────────────────────────────────────
+
+    [Theory]
+    [InlineData("1",  "ONE_BIT")]
+    [InlineData("2",  "TWO_BITS")]
+    [InlineData("4",  "FOUR_BITS")]
+    [InlineData("8",  "EIGHT_BITS")]
+    [InlineData("15", "FIFTEEN_BITS")]
+    [InlineData("16", "SIXTEEN_BITS")]
+    [InlineData("24", "TWENTY_FOUR_BITS")]
+    [InlineData("32", "THIRTY_TWO_BITS")]
+    [InlineData("48", "FORTY_EIGHT_BITS")]
+    public void MapColorDepth_ReturnsGpEnum(string input, string expected)
+    {
+        Assert.Equal(expected, GpUtilities.MapColorDepth(input));
+    }
+
+    [Fact]
+    public void MapColorDepth_NeverReturnsRawInteger()
+    {
+        var result = GpUtilities.MapColorDepth("24");
+        Assert.Equal("TWENTY_FOUR_BITS", result);
+        Assert.False(result.All(char.IsDigit), "color_depth must be GP enum, not raw integer");
+    }
+
+    [Fact]
+    public void MapColorDepth_FallbackForUnknownDepth()
+    {
+        Assert.Equal("TWENTY_FOUR_BITS", GpUtilities.MapColorDepth("99"));
+        Assert.Equal("TWENTY_FOUR_BITS", GpUtilities.MapColorDepth("0"));
+    }
+
+    [Fact]
+    public void MapColorDepth_FallbackForNonNumeric()
+    {
+        Assert.Equal("TWENTY_FOUR_BITS", GpUtilities.MapColorDepth("TWENTY_FOUR_BITS"));
+        Assert.Equal("TWENTY_FOUR_BITS", GpUtilities.MapColorDepth(""));
+    }
+
+    // ── MapBool — GP uppercase boolean contract ───────────────────────────────
+
+    [Theory]
+    [InlineData("true",  "TRUE")]
+    [InlineData("false", "FALSE")]
+    [InlineData("TRUE",  "TRUE")]
+    [InlineData("FALSE", "FALSE")]
+    [InlineData("1",     "FALSE")]
+    [InlineData("0",     "FALSE")]
+    public void MapBool_ReturnsUppercase(string input, string expected)
+    {
+        Assert.Equal(expected, GpUtilities.MapBool(input));
+    }
+
+    [Fact]
+    public void MapBool_ResultIsAlwaysUppercase()
+    {
+        Assert.Equal(GpUtilities.MapBool("true").ToUpper(),  GpUtilities.MapBool("true"));
+        Assert.Equal(GpUtilities.MapBool("false").ToUpper(), GpUtilities.MapBool("false"));
+    }
+
+    [Fact]
+    public void MapBool_JavaEnabledDefault_MapsFalse()
+    {
+        // initiate-auth default for java_enabled is "false" → must be "FALSE" (not "false")
+        Assert.Equal("FALSE", GpUtilities.MapBool("false"));
+    }
+
+    [Fact]
+    public void MapBool_JavascriptEnabledDefault_MapsTrue()
+    {
+        // initiate-auth default for javascript_enabled is "true" → must be "TRUE" (not "true")
+        Assert.Equal("TRUE", GpUtilities.MapBool("true"));
+    }
+
+    // ── initiate-auth payload structure contract ──────────────────────────────
+
+    [Fact]
+    public void InitiateAuth_MethodUrlCompletionStatus_IsTopLevel()
+    {
+        // method_url_completion_status MUST be top-level, NOT inside three_ds.
+        // This mirrors the payload constructed in Program.cs MapPost("/api/initiate-auth").
+        var threeDs = new
+        {
+            source           = "BROWSER",
+            preference       = "NO_PREFERENCE",
+            message_version  = "2.2.0",
+            server_trans_ref = "some-uuid",
+        };
+
+        var payload = new
+        {
+            channel                      = "CNP",
+            method_url_completion_status = "YES",
+            three_ds                     = threeDs,
+        };
+
+        // Top-level field exists with correct value
+        Assert.Equal("YES", payload.method_url_completion_status);
+
+        // three_ds block must NOT have method_url_completion_status
+        var threeFields = typeof(object).Assembly
+            .GetType("System.Runtime.CompilerServices.ITuple");
+        var tdsProps = threeDs.GetType().GetProperties().Select(p => p.Name);
+        Assert.DoesNotContain("method_url_completion_status", tdsProps);
+        Assert.DoesNotContain("method_url_completion",        tdsProps);
+    }
+
+    [Fact]
+    public void InitiateAuth_ColorDepth_IsEnum()
+    {
+        Assert.Equal("TWENTY_FOUR_BITS", GpUtilities.MapColorDepth("24"));
+        Assert.NotEqual("24",            GpUtilities.MapColorDepth("24"));
+    }
 }

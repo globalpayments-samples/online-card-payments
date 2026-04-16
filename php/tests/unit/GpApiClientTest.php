@@ -169,4 +169,158 @@ class GpApiClientTest extends TestCase
         // Verify the path is writable (not the token itself)
         $this->assertTrue(is_writable('/tmp'), '/tmp must be writable for token cache');
     }
+
+    // ── mapColorDepth — GP enum contract ──────────────────────────────────────
+
+    #[Test]
+    #[DataProvider('colorDepthProvider')]
+    public function testMapColorDepthReturnsGpEnum(string $input, string $expected): void
+    {
+        $this->assertSame($expected, GpApiClient::mapColorDepth($input));
+    }
+
+    #[Test]
+    #[DataProvider('colorDepthProvider')]
+    public function testMapColorDepthNeverReturnsRawInteger(string $input, string $expected): void
+    {
+        $result = GpApiClient::mapColorDepth($input);
+        $this->assertFalse(ctype_digit($result), "color_depth must be a GP enum, not a raw integer: got $result");
+    }
+
+    public static function colorDepthProvider(): array
+    {
+        return [
+            'depth-1'  => ['1',  'ONE_BIT'],
+            'depth-2'  => ['2',  'TWO_BITS'],
+            'depth-4'  => ['4',  'FOUR_BITS'],
+            'depth-8'  => ['8',  'EIGHT_BITS'],
+            'depth-15' => ['15', 'FIFTEEN_BITS'],
+            'depth-16' => ['16', 'SIXTEEN_BITS'],
+            'depth-24' => ['24', 'TWENTY_FOUR_BITS'],
+            'depth-32' => ['32', 'THIRTY_TWO_BITS'],
+            'depth-48' => ['48', 'FORTY_EIGHT_BITS'],
+        ];
+    }
+
+    #[Test]
+    public function testMapColorDepthFallbackForUnknownDepth(): void
+    {
+        $this->assertSame('TWENTY_FOUR_BITS', GpApiClient::mapColorDepth('99'));
+        $this->assertSame('TWENTY_FOUR_BITS', GpApiClient::mapColorDepth('0'));
+    }
+
+    #[Test]
+    public function testMapColorDepthFallbackForNonNumeric(): void
+    {
+        $this->assertSame('TWENTY_FOUR_BITS', GpApiClient::mapColorDepth('TWENTY_FOUR_BITS'));
+        $this->assertSame('TWENTY_FOUR_BITS', GpApiClient::mapColorDepth(''));
+    }
+
+    // ── mapBool — GP uppercase boolean contract ───────────────────────────────
+
+    #[Test]
+    #[DataProvider('mapBoolProvider')]
+    public function testMapBoolReturnsUppercase(string $input, string $expected): void
+    {
+        $this->assertSame($expected, GpApiClient::mapBool($input));
+    }
+
+    public static function mapBoolProvider(): array
+    {
+        return [
+            ['true',  'TRUE'],
+            ['false', 'FALSE'],
+            ['TRUE',  'TRUE'],
+            ['FALSE', 'FALSE'],
+            ['1',     'FALSE'],
+            ['0',     'FALSE'],
+        ];
+    }
+
+    #[Test]
+    public function testMapBoolResultIsAlwaysUppercase(): void
+    {
+        $this->assertSame(strtoupper(GpApiClient::mapBool('true')),  GpApiClient::mapBool('true'));
+        $this->assertSame(strtoupper(GpApiClient::mapBool('false')), GpApiClient::mapBool('false'));
+    }
+
+    #[Test]
+    public function testMapBoolJavaEnabledDefault(): void
+    {
+        // initiate-auth.php default for java_enabled is 'false' → must map to 'FALSE'
+        $this->assertSame('FALSE', GpApiClient::mapBool('false'));
+    }
+
+    #[Test]
+    public function testMapBoolJavascriptEnabledDefault(): void
+    {
+        // initiate-auth.php default for javascript_enabled is 'true' → must map to 'TRUE'
+        $this->assertSame('TRUE', GpApiClient::mapBool('true'));
+    }
+
+    // ── initiate-auth payload structure ───────────────────────────────────────
+
+    #[Test]
+    public function testInitiateAuthMethodUrlCompletionStatusIsTopLevel(): void
+    {
+        // method_url_completion_status must be top-level, NOT inside three_ds
+        // Mirrors php/api/initiate-auth.php payload construction
+        $methodCompletion = 'YES';
+        $payload = [
+            'channel' => 'CNP',
+            'method_url_completion_status' => $methodCompletion,
+            'three_ds' => [
+                'source'          => 'BROWSER',
+                'preference'      => 'NO_PREFERENCE',
+                'message_version' => '2.2.0',
+            ],
+        ];
+
+        $this->assertArrayHasKey('method_url_completion_status', $payload);
+        $this->assertSame('YES', $payload['method_url_completion_status']);
+        $this->assertArrayNotHasKey('method_url_completion_status', $payload['three_ds']);
+        $this->assertArrayNotHasKey('method_url_completion',        $payload['three_ds']);
+    }
+
+    #[Test]
+    public function testInitiateAuthColorDepthIsEnum(): void
+    {
+        $result = GpApiClient::mapColorDepth('24');
+        $this->assertSame('TWENTY_FOUR_BITS', $result);
+        $this->assertNotSame('24', $result);
+    }
+
+    // ── notification HTML contract ────────────────────────────────────────────
+
+    #[Test]
+    public function testChallengeNotificationFileHasCorrectType(): void
+    {
+        $content = file_get_contents(__DIR__ . '/../../api/challenge-notification.php');
+        $this->assertStringContainsString("type:'authResult'", $content);
+        $this->assertStringContainsString('postMessage', $content);
+    }
+
+    #[Test]
+    public function testMethodNotificationFileHasCorrectType(): void
+    {
+        $content = file_get_contents(__DIR__ . '/../../api/method-notification.php');
+        $this->assertStringContainsString("type:'methodComplete'", $content);
+        $this->assertStringContainsString('postMessage', $content);
+    }
+
+    #[Test]
+    public function testChallengeNotificationEchoesNonce(): void
+    {
+        $content = file_get_contents(__DIR__ . '/../../api/challenge-notification.php');
+        $this->assertStringContainsString('nonce', $content);
+        $this->assertStringContainsString('$_GET', $content);
+    }
+
+    #[Test]
+    public function testMethodNotificationEchoesNonce(): void
+    {
+        $content = file_get_contents(__DIR__ . '/../../api/method-notification.php');
+        $this->assertStringContainsString('nonce', $content);
+        $this->assertStringContainsString('$_GET', $content);
+    }
 }

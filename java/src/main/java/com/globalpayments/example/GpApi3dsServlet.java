@@ -106,10 +106,14 @@ public class GpApi3dsServlet extends HttpServlet {
             res.getWriter().write("{\"status\":\"ok\",\"backend\":\"java\",\"version\":\"1.0.0\"}");
         } else if ("/3ds/challenge-notification".equals(path)) {
             res.setContentType("text/html");
-            res.getWriter().write("<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'authResult'},'*');}catch(_){}try{window.top.postMessage({type:'authResult'},'*');}catch(_){}</script></body></html>");
+            String nonce = req.getParameter("nonce");
+            String nonceJs = nonce != null ? org.json.JSONObject.quote(nonce) : "undefined";
+            res.getWriter().write("<!DOCTYPE html><html><body><script>var msg={type:'authResult',nonce:" + nonceJs + "};try{window.parent.postMessage(msg,'*');}catch(_){}try{window.top.postMessage(msg,'*');}catch(_){}</script></body></html>");
         } else if ("/3ds/method-notification".equals(path)) {
             res.setContentType("text/html");
-            res.getWriter().write("<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'methodComplete'},'*');}catch(_){}try{window.top.postMessage({type:'methodComplete'},'*');}catch(_){}</script></body></html>");
+            String nonce = req.getParameter("nonce");
+            String nonceJs = nonce != null ? org.json.JSONObject.quote(nonce) : "undefined";
+            res.getWriter().write("<!DOCTYPE html><html><body><script>var msg={type:'methodComplete',nonce:" + nonceJs + "};try{window.parent.postMessage(msg,'*');}catch(_){}try{window.top.postMessage(msg,'*');}catch(_){}</script></body></html>");
         } else {
             res.setStatus(404);
             res.getWriter().write("{\"error\":\"Not found\"}");
@@ -125,12 +129,16 @@ public class GpApi3dsServlet extends HttpServlet {
         String path = req.getServletPath();
         if ("/3ds/challenge-notification".equals(path)) {
             res.setContentType("text/html");
-            res.getWriter().write("<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'authResult'},'*');}catch(_){}try{window.top.postMessage({type:'authResult'},'*');}catch(_){}</script></body></html>");
+            String nonce = req.getParameter("nonce");
+            String nonceJs = nonce != null ? org.json.JSONObject.quote(nonce) : "undefined";
+            res.getWriter().write("<!DOCTYPE html><html><body><script>var msg={type:'authResult',nonce:" + nonceJs + "};try{window.parent.postMessage(msg,'*');}catch(_){}try{window.top.postMessage(msg,'*');}catch(_){}</script></body></html>");
             return;
         }
         if ("/3ds/method-notification".equals(path)) {
             res.setContentType("text/html");
-            res.getWriter().write("<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'methodComplete'},'*');}catch(_){}try{window.top.postMessage({type:'methodComplete'},'*');}catch(_){}</script></body></html>");
+            String nonce = req.getParameter("nonce");
+            String nonceJs = nonce != null ? org.json.JSONObject.quote(nonce) : "undefined";
+            res.getWriter().write("<!DOCTYPE html><html><body><script>var msg={type:'methodComplete',nonce:" + nonceJs + "};try{window.parent.postMessage(msg,'*');}catch(_){}try{window.top.postMessage(msg,'*');}catch(_){}</script></body></html>");
             return;
         }
 
@@ -161,6 +169,11 @@ public class GpApi3dsServlet extends HttpServlet {
             return;
         }
 
+        String flowNonce   = in.optString("flow_nonce", "");
+        String nonceQuery  = flowNonce.isEmpty() ? "" : ("?nonce=" + java.net.URLEncoder.encode(flowNonce, StandardCharsets.UTF_8));
+        String challengeUrl = env("CHALLENGE_NOTIFICATION_URL", "") + nonceQuery;
+        String methodNotifyUrl = env("METHOD_NOTIFICATION_URL", "") + nonceQuery;
+
         JSONObject payload = new JSONObject();
         payload.put("account_name", env("GP_ACCOUNT_NAME", "transaction_processing"));
         String accountId = env("GP_ACCOUNT_ID", "");
@@ -180,8 +193,8 @@ public class GpApi3dsServlet extends HttpServlet {
             .put("preference",      "NO_PREFERENCE")
             .put("message_version", "2.2.0"));
         payload.put("notifications", new JSONObject()
-            .put("challenge_return_url",       env("CHALLENGE_NOTIFICATION_URL", ""))
-            .put("three_ds_method_return_url", env("METHOD_NOTIFICATION_URL",    "")));
+            .put("challenge_return_url",       challengeUrl)
+            .put("three_ds_method_return_url", methodNotifyUrl));
 
         JSONObject raw = gpPost("/authentications", payload);
 
@@ -196,7 +209,7 @@ public class GpApi3dsServlet extends HttpServlet {
             } else {
                 String mJson = new JSONObject()
                     .put("threeDSServerTransID",  raw.getString("id"))
-                    .put("methodNotificationURL", env("METHOD_NOTIFICATION_URL", ""))
+                    .put("methodNotificationURL", methodNotifyUrl)
                     .toString();
                 methodData = Base64.getEncoder().encodeToString(mJson.getBytes(StandardCharsets.UTF_8));
             }
@@ -230,6 +243,9 @@ public class GpApi3dsServlet extends HttpServlet {
             res.getWriter().write("{\"success\":false,\"error\":\"server_trans_id is required\"}");
             return;
         }
+
+        String iaFlowNonce  = in.optString("flow_nonce", "");
+        String iaNonceQuery = iaFlowNonce.isEmpty() ? "" : ("?nonce=" + java.net.URLEncoder.encode(iaFlowNonce, StandardCharsets.UTF_8));
 
         JSONObject order    = in.optJSONObject("order");
         String amount       = order != null ? order.optString("amount",   "10.00") : "10.00";
@@ -282,8 +298,8 @@ public class GpApi3dsServlet extends HttpServlet {
             .put("timezone",              bdField(bd, "timezone",              "0"))
             .put("user_agent",            bdField(bd, "user_agent",            "Mozilla/5.0")));
         payload.put("notifications", new JSONObject()
-            .put("challenge_return_url",       env("CHALLENGE_NOTIFICATION_URL", ""))
-            .put("three_ds_method_return_url", env("METHOD_NOTIFICATION_URL",    "")));
+            .put("challenge_return_url",       env("CHALLENGE_NOTIFICATION_URL", "") + iaNonceQuery)
+            .put("three_ds_method_return_url", env("METHOD_NOTIFICATION_URL",    "") + iaNonceQuery));
 
         JSONObject raw = gpPost("/authentications", payload);
         JSONObject tds = raw.optJSONObject("three_ds");

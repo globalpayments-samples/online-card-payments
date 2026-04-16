@@ -143,9 +143,10 @@ app.post('/get-access-token', async (req, res) => {
  */
 app.post('/api/check-enrollment', async (req, res) => {
     try {
-        const { payment_token } = req.body;
+        const { payment_token, flow_nonce } = req.body;
         if (!payment_token) return res.status(400).json({ success: false, error: 'payment_token is required' });
 
+        const nonceQuery = flow_nonce ? `?nonce=${encodeURIComponent(flow_nonce)}` : '';
         const payload = {
             account_name: process.env.GP_ACCOUNT_NAME || 'transaction_processing',
             account_id:   process.env.GP_ACCOUNT_ID,
@@ -165,8 +166,8 @@ app.post('/api/check-enrollment', async (req, res) => {
                 message_version: '2.2.0',
             },
             notifications: {
-                challenge_return_url:       process.env.CHALLENGE_NOTIFICATION_URL,
-                three_ds_method_return_url: process.env.METHOD_NOTIFICATION_URL,
+                challenge_return_url:       process.env.CHALLENGE_NOTIFICATION_URL + nonceQuery,
+                three_ds_method_return_url: process.env.METHOD_NOTIFICATION_URL    + nonceQuery,
             },
         };
 
@@ -177,7 +178,7 @@ app.post('/api/check-enrollment', async (req, res) => {
             ? (raw.three_ds?.method_data?.encoded_method_data ||
                Buffer.from(JSON.stringify({
                    threeDSServerTransID:  raw.id,
-                   methodNotificationURL: process.env.METHOD_NOTIFICATION_URL,
+                   methodNotificationURL: process.env.METHOD_NOTIFICATION_URL + nonceQuery,
                })).toString('base64'))
             : null;
 
@@ -212,6 +213,7 @@ app.post('/api/initiate-auth', async (req, res) => {
             method_url_completion_status,
             browser_data,
             order,
+            flow_nonce,
         } = req.body;
 
         if (!payment_token)   return res.status(400).json({ success: false, error: 'payment_token is required' });
@@ -273,8 +275,8 @@ app.post('/api/initiate-auth', async (req, res) => {
                 user_agent:            browser_data?.user_agent            || 'Mozilla/5.0',
             },
             notifications: {
-                challenge_return_url:       process.env.CHALLENGE_NOTIFICATION_URL,
-                three_ds_method_return_url: process.env.METHOD_NOTIFICATION_URL,
+                challenge_return_url:       process.env.CHALLENGE_NOTIFICATION_URL + (flow_nonce ? `?nonce=${encodeURIComponent(flow_nonce)}` : ''),
+                three_ds_method_return_url: process.env.METHOD_NOTIFICATION_URL    + (flow_nonce ? `?nonce=${encodeURIComponent(flow_nonce)}` : ''),
             },
         };
 
@@ -391,18 +393,22 @@ app.get('/api/health', (req, res) => {
 });
 
 app.all('/3ds/challenge-notification', (req, res) => {
+    const nonce = req.query.nonce ? JSON.stringify(String(req.query.nonce)) : 'undefined';
     res.setHeader('Content-Type', 'text/html');
     res.send(`<!DOCTYPE html><html><body><script>
-        try { window.parent.postMessage({type:'authResult'},'*'); } catch(_){}
-        try { window.top.postMessage({type:'authResult'},'*'); } catch(_){}
+        var msg = {type:'authResult',nonce:${nonce}};
+        try { window.parent.postMessage(msg,'*'); } catch(_){}
+        try { window.top.postMessage(msg,'*'); } catch(_){}
     </script></body></html>`);
 });
 
 app.all('/3ds/method-notification', (req, res) => {
+    const nonce = req.query.nonce ? JSON.stringify(String(req.query.nonce)) : 'undefined';
     res.setHeader('Content-Type', 'text/html');
     res.send(`<!DOCTYPE html><html><body><script>
-        try { window.parent.postMessage({type:'methodComplete'},'*'); } catch(_){}
-        try { window.top.postMessage({type:'methodComplete'},'*'); } catch(_){}
+        var msg = {type:'methodComplete',nonce:${nonce}};
+        try { window.parent.postMessage(msg,'*'); } catch(_){}
+        try { window.top.postMessage(msg,'*'); } catch(_){}
     </script></body></html>`);
 });
 

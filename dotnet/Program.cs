@@ -92,17 +92,9 @@ async Task<(JsonElement root, bool ok, int status)> GpRequest(string method, str
 }
 
 static string ToMinorUnits(string amount) => GpPayments.GpUtilities.ToMinorUnits(amount);
-static string TwoDigitYear(string year)   => GpPayments.GpUtilities.TwoDigitYear(year);
 
-string MapColorDepth(string v) => int.TryParse(v, out var d) ? d switch
-{
-    1  => "ONE_BIT",  2  => "TWO_BITS",  4  => "FOUR_BITS",  8  => "EIGHT_BITS",
-    15 => "FIFTEEN_BITS", 16 => "SIXTEEN_BITS", 24 => "TWENTY_FOUR_BITS",
-    32 => "THIRTY_TWO_BITS", 48 => "FORTY_EIGHT_BITS",
-    _  => "TWENTY_FOUR_BITS"
-} : "TWENTY_FOUR_BITS";
-string MapBool(string v) =>
-    string.Equals(v, "true", StringComparison.OrdinalIgnoreCase) ? "TRUE" : "FALSE";
+static string MapColorDepth(string v) => GpPayments.GpUtilities.MapColorDepth(v);
+static string MapBool(string v)       => GpPayments.GpUtilities.MapBool(v);
 
 IResult GpError(JsonElement root, int status)
 {
@@ -122,15 +114,21 @@ IResult GpError(JsonElement root, int status)
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok", backend = "dotnet", version = "1.0.0" }));
 
-app.MapMethods("/3ds/challenge-notification", new[] { "GET", "POST" }, () =>
-    Results.Content(
-        "<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'authResult'},'*');}catch(_){}try{window.top.postMessage({type:'authResult'},'*');}catch(_){}</script></body></html>",
-        "text/html"));
+app.MapMethods("/3ds/challenge-notification", new[] { "GET", "POST" }, (HttpRequest req) =>
+{
+    var nonce = req.Query.TryGetValue("nonce", out var n) ? System.Text.Json.JsonSerializer.Serialize(n.ToString()) : "undefined";
+    return Results.Content(
+        $"<!DOCTYPE html><html><body><script>var msg={{type:'authResult',nonce:{nonce}}};try{{window.parent.postMessage(msg,'*');}}catch(_){{}}try{{window.top.postMessage(msg,'*');}}catch(_){{}}</script></body></html>",
+        "text/html");
+});
 
-app.MapMethods("/3ds/method-notification", new[] { "GET", "POST" }, () =>
-    Results.Content(
-        "<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'methodComplete'},'*');}catch(_){}try{window.top.postMessage({type:'methodComplete'},'*');}catch(_){}</script></body></html>",
-        "text/html"));
+app.MapMethods("/3ds/method-notification", new[] { "GET", "POST" }, (HttpRequest req) =>
+{
+    var nonce = req.Query.TryGetValue("nonce", out var n) ? System.Text.Json.JsonSerializer.Serialize(n.ToString()) : "undefined";
+    return Results.Content(
+        $"<!DOCTYPE html><html><body><script>var msg={{type:'methodComplete',nonce:{nonce}}};try{{window.parent.postMessage(msg,'*');}}catch(_){{}}try{{window.top.postMessage(msg,'*');}}catch(_){{}}</script></body></html>",
+        "text/html");
+});
 
 /**
  * POST /get-access-token
@@ -199,8 +197,10 @@ app.MapPost("/api/check-enrollment", async (HttpRequest req) =>
         var accountName  = Environment.GetEnvironmentVariable("GP_ACCOUNT_NAME") ?? "transaction_processing";
         var accountId    = Environment.GetEnvironmentVariable("GP_ACCOUNT_ID");
         var merchantId   = Environment.GetEnvironmentVariable("GP_MERCHANT_ID");
-        var challengeUrl = Environment.GetEnvironmentVariable("CHALLENGE_NOTIFICATION_URL");
-        var methodUrl    = Environment.GetEnvironmentVariable("METHOD_NOTIFICATION_URL");
+        var flowNonce    = root.TryGetProperty("flow_nonce", out var fn) ? fn.GetString() : null;
+        var nonceQuery   = !string.IsNullOrEmpty(flowNonce) ? $"?nonce={Uri.EscapeDataString(flowNonce)}" : "";
+        var challengeUrl = Environment.GetEnvironmentVariable("CHALLENGE_NOTIFICATION_URL") + nonceQuery;
+        var methodUrl    = Environment.GetEnvironmentVariable("METHOD_NOTIFICATION_URL")    + nonceQuery;
 
         var payload = new
         {
@@ -300,8 +300,10 @@ app.MapPost("/api/initiate-auth", async (HttpRequest req) =>
         var accountName  = Environment.GetEnvironmentVariable("GP_ACCOUNT_NAME") ?? "transaction_processing";
         var accountId    = Environment.GetEnvironmentVariable("GP_ACCOUNT_ID");
         var merchantId   = Environment.GetEnvironmentVariable("GP_MERCHANT_ID");
-        var challengeUrl = Environment.GetEnvironmentVariable("CHALLENGE_NOTIFICATION_URL");
-        var methodUrl    = Environment.GetEnvironmentVariable("METHOD_NOTIFICATION_URL");
+        var iaNonce      = root.TryGetProperty("flow_nonce", out var iafn) ? iafn.GetString() : null;
+        var iaNonceQuery = !string.IsNullOrEmpty(iaNonce) ? $"?nonce={Uri.EscapeDataString(iaNonce)}" : "";
+        var challengeUrl = Environment.GetEnvironmentVariable("CHALLENGE_NOTIFICATION_URL") + iaNonceQuery;
+        var methodUrl    = Environment.GetEnvironmentVariable("METHOD_NOTIFICATION_URL")    + iaNonceQuery;
 
         var payload = new
         {

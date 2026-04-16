@@ -9,9 +9,18 @@ $dotenv->load();
 
 $input        = json_decode(file_get_contents('php://input'), true) ?? [];
 $paymentToken = $input['payment_token'] ?? '';
+$flowNonce    = $input['flow_nonce']    ?? '';
 
 if (!$paymentToken) {
     GpApiClient::jsonResponse(['success' => false, 'error' => 'payment_token is required'], 400);
+}
+
+$nonceQuery         = $flowNonce ? ('?nonce=' . urlencode($flowNonce)) : '';
+$challengeUrl       = (getenv('CHALLENGE_NOTIFICATION_URL') ?: null);
+$methodNotifyUrl    = (getenv('METHOD_NOTIFICATION_URL')    ?: null);
+if ($nonceQuery) {
+    $challengeUrl    = $challengeUrl    ? $challengeUrl    . $nonceQuery : null;
+    $methodNotifyUrl = $methodNotifyUrl ? $methodNotifyUrl . $nonceQuery : null;
 }
 
 try {
@@ -34,8 +43,8 @@ try {
             'message_version' => '2.2.0',
         ],
         'notifications' => [
-            'challenge_return_url'       => getenv('CHALLENGE_NOTIFICATION_URL') ?: null,
-            'three_ds_method_return_url' => getenv('METHOD_NOTIFICATION_URL')    ?: null,
+            'challenge_return_url'       => $challengeUrl,
+            'three_ds_method_return_url' => $methodNotifyUrl,
         ],
     ]);
 
@@ -48,7 +57,7 @@ try {
         } else {
             $methodJson = json_encode([
                 'threeDSServerTransID'  => $raw['id'],
-                'methodNotificationURL' => getenv('METHOD_NOTIFICATION_URL') ?: '',
+                'methodNotificationURL' => $methodNotifyUrl ?: '',
             ]);
             $methodData = base64_encode($methodJson);
         }

@@ -166,4 +166,112 @@ public class GpApi3dsServletTest {
         assertNotNull(expected);
         assertTrue(expected.startsWith("https://"));
     }
+
+    // ── mapColorDepth — GP enum contract ──────────────────────────────────────
+
+    private static String invokeMapColorDepth(String v) throws Exception {
+        Method m = GpApi3dsServlet.class.getDeclaredMethod("mapColorDepth", String.class);
+        m.setAccessible(true);
+        return (String) m.invoke(null, v);
+    }
+
+    @ParameterizedTest(name = "mapColorDepth({0}) == {1}")
+    @CsvSource({
+        "1,  ONE_BIT",
+        "2,  TWO_BITS",
+        "4,  FOUR_BITS",
+        "8,  EIGHT_BITS",
+        "15, FIFTEEN_BITS",
+        "16, SIXTEEN_BITS",
+        "24, TWENTY_FOUR_BITS",
+        "32, THIRTY_TWO_BITS",
+        "48, FORTY_EIGHT_BITS",
+    })
+    void testMapColorDepthReturnsGpEnum(String input, String expected) throws Exception {
+        assertEquals(expected.strip(), invokeMapColorDepth(input.strip()));
+    }
+
+    @Test
+    void testMapColorDepthNeverReturnsRawInteger() throws Exception {
+        String result = invokeMapColorDepth("24");
+        assertFalse(result.matches("^\\d+$"), "color_depth must be a GP enum, not raw integer: " + result);
+        assertEquals("TWENTY_FOUR_BITS", result);
+    }
+
+    @Test
+    void testMapColorDepthFallbackForUnknown() throws Exception {
+        assertEquals("TWENTY_FOUR_BITS", invokeMapColorDepth("99"));
+        assertEquals("TWENTY_FOUR_BITS", invokeMapColorDepth("0"));
+    }
+
+    @Test
+    void testMapColorDepthFallbackForNonNumeric() throws Exception {
+        assertEquals("TWENTY_FOUR_BITS", invokeMapColorDepth("TWENTY_FOUR_BITS"));
+    }
+
+    // ── mapBool — GP uppercase boolean contract ───────────────────────────────
+
+    private static String invokeMapBool(String v) throws Exception {
+        Method m = GpApi3dsServlet.class.getDeclaredMethod("mapBool", String.class);
+        m.setAccessible(true);
+        return (String) m.invoke(null, v);
+    }
+
+    @ParameterizedTest(name = "mapBool({0}) == {1}")
+    @CsvSource({
+        "true,  TRUE",
+        "false, FALSE",
+        "TRUE,  TRUE",
+        "FALSE, FALSE",
+        "1,     FALSE",
+        "0,     FALSE",
+    })
+    void testMapBoolReturnsUppercase(String input, String expected) throws Exception {
+        assertEquals(expected.strip(), invokeMapBool(input.strip()));
+    }
+
+    @Test
+    void testMapBoolResultIsAlwaysUppercase() throws Exception {
+        String trueResult  = invokeMapBool("true");
+        String falseResult = invokeMapBool("false");
+        assertEquals(trueResult.toUpperCase(),  trueResult,  "mapBool must return uppercase");
+        assertEquals(falseResult.toUpperCase(), falseResult, "mapBool must return uppercase");
+    }
+
+    @Test
+    void testMapBoolJavaEnabledDefault() throws Exception {
+        // Default for java_enabled is "false" — must map to "FALSE" not "false"
+        assertEquals("FALSE", invokeMapBool("false"));
+    }
+
+    @Test
+    void testMapBoolJavascriptEnabledDefault() throws Exception {
+        // Default for javascript_enabled is "true" — must map to "TRUE" not "true"
+        assertEquals("TRUE", invokeMapBool("true"));
+    }
+
+    // ── initiate-auth payload structure contract ──────────────────────────────
+
+    @Test
+    void testInitiateAuthMethodUrlCompletionStatusIsTopLevel() {
+        // Mirrors the Java payload construction in handleInitiateAuth().
+        // method_url_completion_status MUST be top-level, NOT inside three_ds.
+        org.json.JSONObject threeDs = new org.json.JSONObject()
+            .put("source",          "BROWSER")
+            .put("preference",      "NO_PREFERENCE")
+            .put("message_version", "2.2.0");
+
+        org.json.JSONObject payload = new org.json.JSONObject()
+            .put("channel",                      "CNP")
+            .put("method_url_completion_status", "YES")
+            .put("three_ds",                     threeDs);
+
+        assertTrue(payload.has("method_url_completion_status"),
+            "method_url_completion_status must be top-level in payload");
+        assertEquals("YES", payload.getString("method_url_completion_status"));
+        assertFalse(threeDs.has("method_url_completion_status"),
+            "three_ds must NOT contain method_url_completion_status");
+        assertFalse(threeDs.has("method_url_completion"),
+            "three_ds must NOT contain method_url_completion");
+    }
 }

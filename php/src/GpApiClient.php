@@ -143,6 +143,21 @@ class GpApiClient
         return substr($year, -2);
     }
 
+    public static function mapColorDepth(string $v): string
+    {
+        static $map = [
+            1 => 'ONE_BIT', 2 => 'TWO_BITS', 4 => 'FOUR_BITS', 8 => 'EIGHT_BITS',
+            15 => 'FIFTEEN_BITS', 16 => 'SIXTEEN_BITS', 24 => 'TWENTY_FOUR_BITS',
+            32 => 'THIRTY_TWO_BITS', 48 => 'FORTY_EIGHT_BITS',
+        ];
+        return $map[(int) $v] ?? 'TWENTY_FOUR_BITS';
+    }
+
+    public static function mapBool(string $v): string
+    {
+        return strtolower($v) === 'true' ? 'TRUE' : 'FALSE';
+    }
+
     public static function uuid(): string
     {
         return sprintf(
