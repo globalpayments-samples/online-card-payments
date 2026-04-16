@@ -26,6 +26,8 @@ $routes = [
     'POST /api/authorize-payment'      => __DIR__ . '/api/authorize-payment.php',
     'GET /3ds/challenge-notification'  => __DIR__ . '/api/challenge-notification.php',
     'POST /3ds/challenge-notification' => __DIR__ . '/api/challenge-notification.php',
+    'GET /3ds/method-notification'     => __DIR__ . '/api/method-notification.php',
+    'POST /3ds/method-notification'    => __DIR__ . '/api/method-notification.php',
 ];
 
 // Strip query string for routing

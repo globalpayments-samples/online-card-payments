@@ -398,6 +398,14 @@ app.all('/3ds/challenge-notification', (req, res) => {
     </script></body></html>`);
 });
 
+app.all('/3ds/method-notification', (req, res) => {
+    res.setHeader('Content-Type', 'text/html');
+    res.send(`<!DOCTYPE html><html><body><script>
+        try { window.parent.postMessage({type:'methodComplete'},'*'); } catch(_){}
+        try { window.top.postMessage({type:'methodComplete'},'*'); } catch(_){}
+    </script></body></html>`);
+});
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 app.listen(port, '0.0.0.0', () => {

@@ -44,7 +44,8 @@ import java.util.zip.GZIPInputStream;
     "/api/initiate-auth",
     "/api/get-auth-result",
     "/api/authorize-payment",
-    "/3ds/challenge-notification"
+    "/3ds/challenge-notification",
+    "/3ds/method-notification"
 })
 public class GpApi3dsServlet extends HttpServlet {
 
@@ -106,6 +107,9 @@ public class GpApi3dsServlet extends HttpServlet {
         } else if ("/3ds/challenge-notification".equals(path)) {
             res.setContentType("text/html");
             res.getWriter().write("<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'authResult'},'*');}catch(_){}try{window.top.postMessage({type:'authResult'},'*');}catch(_){}</script></body></html>");
+        } else if ("/3ds/method-notification".equals(path)) {
+            res.setContentType("text/html");
+            res.getWriter().write("<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'methodComplete'},'*');}catch(_){}try{window.top.postMessage({type:'methodComplete'},'*');}catch(_){}</script></body></html>");
         } else {
             res.setStatus(404);
             res.getWriter().write("{\"error\":\"Not found\"}");
@@ -116,21 +120,30 @@ public class GpApi3dsServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
         addCors(res);
-        res.setContentType("application/json");
 
+        // Route notification endpoints BEFORE JSON parse — ACS POSTs form data, not JSON
+        String path = req.getServletPath();
+        if ("/3ds/challenge-notification".equals(path)) {
+            res.setContentType("text/html");
+            res.getWriter().write("<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'authResult'},'*');}catch(_){}try{window.top.postMessage({type:'authResult'},'*');}catch(_){}</script></body></html>");
+            return;
+        }
+        if ("/3ds/method-notification".equals(path)) {
+            res.setContentType("text/html");
+            res.getWriter().write("<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'methodComplete'},'*');}catch(_){}try{window.top.postMessage({type:'methodComplete'},'*');}catch(_){}</script></body></html>");
+            return;
+        }
+
+        res.setContentType("application/json");
         String body  = req.getReader().lines().collect(Collectors.joining());
         JSONObject input = new JSONObject(body.isEmpty() ? "{}" : body);
 
         try {
-            switch (req.getServletPath()) {
-                case "/api/check-enrollment"        -> handleCheckEnrollment(input, res);
-                case "/api/initiate-auth"           -> handleInitiateAuth(input, res);
-                case "/api/get-auth-result"         -> handleGetAuthResult(input, res);
-                case "/api/authorize-payment"       -> handleAuthorizePayment(input, res);
-                case "/3ds/challenge-notification"  -> {
-                    res.setContentType("text/html");
-                    res.getWriter().write("<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'authResult'},'*');}catch(_){}try{window.top.postMessage({type:'authResult'},'*');}catch(_){}</script></body></html>");
-                }
+            switch (path) {
+                case "/api/check-enrollment"  -> handleCheckEnrollment(input, res);
+                case "/api/initiate-auth"     -> handleInitiateAuth(input, res);
+                case "/api/get-auth-result"   -> handleGetAuthResult(input, res);
+                case "/api/authorize-payment" -> handleAuthorizePayment(input, res);
                 default -> { res.setStatus(404); res.getWriter().write("{\"error\":\"Not found\"}"); }
             }
         } catch (Exception e) {

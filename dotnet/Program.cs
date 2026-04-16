@@ -94,15 +94,14 @@ async Task<(JsonElement root, bool ok, int status)> GpRequest(string method, str
 static string ToMinorUnits(string amount) => GpPayments.GpUtilities.ToMinorUnits(amount);
 static string TwoDigitYear(string year)   => GpPayments.GpUtilities.TwoDigitYear(year);
 
-static readonly Dictionary<int, string> ColorDepthMap = new()
+string MapColorDepth(string v) => int.TryParse(v, out var d) ? d switch
 {
-    {1,"ONE_BIT"},{2,"TWO_BITS"},{4,"FOUR_BITS"},{8,"EIGHT_BITS"},
-    {15,"FIFTEEN_BITS"},{16,"SIXTEEN_BITS"},{24,"TWENTY_FOUR_BITS"},
-    {32,"THIRTY_TWO_BITS"},{48,"FORTY_EIGHT_BITS"}
-};
-static string MapColorDepth(string v) =>
-    int.TryParse(v, out var d) && ColorDepthMap.TryGetValue(d, out var s) ? s : "TWENTY_FOUR_BITS";
-static string MapBool(string v) =>
+    1  => "ONE_BIT",  2  => "TWO_BITS",  4  => "FOUR_BITS",  8  => "EIGHT_BITS",
+    15 => "FIFTEEN_BITS", 16 => "SIXTEEN_BITS", 24 => "TWENTY_FOUR_BITS",
+    32 => "THIRTY_TWO_BITS", 48 => "FORTY_EIGHT_BITS",
+    _  => "TWENTY_FOUR_BITS"
+} : "TWENTY_FOUR_BITS";
+string MapBool(string v) =>
     string.Equals(v, "true", StringComparison.OrdinalIgnoreCase) ? "TRUE" : "FALSE";
 
 IResult GpError(JsonElement root, int status)
@@ -126,6 +125,11 @@ app.MapGet("/api/health", () => Results.Ok(new { status = "ok", backend = "dotne
 app.MapMethods("/3ds/challenge-notification", new[] { "GET", "POST" }, () =>
     Results.Content(
         "<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'authResult'},'*');}catch(_){}try{window.top.postMessage({type:'authResult'},'*');}catch(_){}</script></body></html>",
+        "text/html"));
+
+app.MapMethods("/3ds/method-notification", new[] { "GET", "POST" }, () =>
+    Results.Content(
+        "<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'methodComplete'},'*');}catch(_){}try{window.top.postMessage({type:'methodComplete'},'*');}catch(_){}</script></body></html>",
         "text/html"));
 
 /**

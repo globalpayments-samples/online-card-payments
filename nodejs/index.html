@@ -319,7 +319,24 @@ app.post('/webhook', (req, res) => {
             form.submit();
             form.remove();
 
-            setTimeout(() => { try { iframe.remove(); } catch(_) {} resolve(); }, 10000);
+            function onMethodMsg(evt) {
+                try {
+                    const d = typeof evt.data === 'string' ? JSON.parse(evt.data) : evt.data;
+                    if (d && d.type === 'methodComplete') {
+                        window.removeEventListener('message', onMethodMsg);
+                        clearTimeout(timer);
+                        try { iframe.remove(); } catch(_) {}
+                        resolve('YES');
+                    }
+                } catch (_) {}
+            }
+            window.addEventListener('message', onMethodMsg);
+
+            const timer = setTimeout(() => {
+                window.removeEventListener('message', onMethodMsg);
+                try { iframe.remove(); } catch(_) {}
+                resolve('NO');
+            }, 10000);
         });
     }
 
@@ -375,8 +392,7 @@ app.post('/webhook', (req, res) => {
             let methodCompletion = 'NO';
             if (method_url && method_data) {
                 setStatus('Running 3DS method (background)…');
-                await execute3DSMethod(method_url, method_data);
-                methodCompletion = 'YES';
+                methodCompletion = await execute3DSMethod(method_url, method_data);
             }
 
             // 3. Initiate auth
