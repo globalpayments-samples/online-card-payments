@@ -121,10 +121,12 @@ public class ProcessPaymentServlet extends HttpServlet {
             String token      = tokenResponse.getString("token");
             int    expiresIn  = tokenResponse.optInt("seconds_to_expire", 600);
 
+            String environment = "production".equals(env("GP_ENVIRONMENT")) ? "production" : "sandbox";
             JSONObject result = new JSONObject();
-            result.put("success",   true);
-            result.put("token",     token);
-            result.put("expiresIn", expiresIn);
+            result.put("success",     true);
+            result.put("token",       token);
+            result.put("expiresIn",   expiresIn);
+            result.put("environment", environment);
             response.getWriter().write(result.toString());
 
         } catch (Exception e) {

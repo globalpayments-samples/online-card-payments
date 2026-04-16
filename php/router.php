@@ -18,12 +18,14 @@ if ($method === 'OPTIONS') {
 }
 
 $routes = [
-    'GET /api/health'            => __DIR__ . '/api/health.php',
-    'POST /get-access-token'     => __DIR__ . '/get-access-token.php',
-    'POST /api/check-enrollment' => __DIR__ . '/api/check-enrollment.php',
-    'POST /api/initiate-auth'    => __DIR__ . '/api/initiate-auth.php',
-    'POST /api/get-auth-result'  => __DIR__ . '/api/get-auth-result.php',
-    'POST /api/authorize-payment'=> __DIR__ . '/api/authorize-payment.php',
+    'GET /api/health'                  => __DIR__ . '/api/health.php',
+    'POST /get-access-token'           => __DIR__ . '/get-access-token.php',
+    'POST /api/check-enrollment'       => __DIR__ . '/api/check-enrollment.php',
+    'POST /api/initiate-auth'          => __DIR__ . '/api/initiate-auth.php',
+    'POST /api/get-auth-result'        => __DIR__ . '/api/get-auth-result.php',
+    'POST /api/authorize-payment'      => __DIR__ . '/api/authorize-payment.php',
+    'GET /3ds/challenge-notification'  => __DIR__ . '/api/challenge-notification.php',
+    'POST /3ds/challenge-notification' => __DIR__ . '/api/challenge-notification.php',
 ];
 
 // Strip query string for routing

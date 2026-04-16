@@ -69,6 +69,18 @@ function twoDigitYear(year) {
     return String(year).slice(-2);
 }
 
+const COLOR_DEPTH_MAP = {
+    1: 'ONE_BIT', 2: 'TWO_BITS', 4: 'FOUR_BITS', 8: 'EIGHT_BITS',
+    15: 'FIFTEEN_BITS', 16: 'SIXTEEN_BITS', 24: 'TWENTY_FOUR_BITS',
+    32: 'THIRTY_TWO_BITS', 48: 'FORTY_EIGHT_BITS',
+};
+function mapColorDepth(v) {
+    return COLOR_DEPTH_MAP[parseInt(v, 10)] || 'TWENTY_FOUR_BITS';
+}
+function mapBool(v) {
+    return String(v).toLowerCase() === 'true' ? 'TRUE' : 'FALSE';
+}
+
 function gpError(res, err) {
     const d = err.gpData || {};
     return res.status(err.status || 500).json({
@@ -118,7 +130,7 @@ app.post('/get-access-token', async (req, res) => {
             throw new Error(data.error_description || 'Failed to generate access token');
         }
 
-        res.json({ success: true, token: data.token, expiresIn: data.seconds_to_expire || 600 });
+        res.json({ success: true, token: data.token, expiresIn: data.seconds_to_expire || 600, environment: process.env.GP_ENVIRONMENT || 'sandbox' });
     } catch (err) {
         res.status(500).json({ success: false, message: 'Error generating access token', error: err.message });
     }
@@ -162,10 +174,11 @@ app.post('/api/check-enrollment', async (req, res) => {
 
         const methodUrl  = raw.three_ds?.method_url || null;
         const methodData = methodUrl
-            ? Buffer.from(JSON.stringify({
-                threeDSServerTransID:  raw.id,
-                methodNotificationURL: process.env.METHOD_NOTIFICATION_URL,
-              })).toString('base64')
+            ? (raw.three_ds?.method_data?.encoded_method_data ||
+               Buffer.from(JSON.stringify({
+                   threeDSServerTransID:  raw.id,
+                   methodNotificationURL: process.env.METHOD_NOTIFICATION_URL,
+               })).toString('base64'))
             : null;
 
         res.json({
@@ -196,7 +209,7 @@ app.post('/api/initiate-auth', async (req, res) => {
             payment_token,
             server_trans_id,
             message_version,
-            method_url_completion,
+            method_url_completion_status,
             browser_data,
             order,
         } = req.body;
@@ -223,12 +236,12 @@ app.post('/api/initiate-auth', async (req, res) => {
                 entry_mode: 'ECOM',
                 id:         payment_token,
             },
+            method_url_completion_status: method_url_completion_status || 'NO',
             three_ds: {
-                source:                'BROWSER',
-                preference:            'NO_PREFERENCE',
-                message_version:       message_version || '2.1.0',
-                server_trans_ref:      serverTransRef,
-                method_url_completion: method_url_completion || 'UNAVAILABLE',
+                source:           'BROWSER',
+                preference:       'NO_PREFERENCE',
+                message_version:  message_version || '2.1.0',
+                server_trans_ref: serverTransRef,
             },
             order: {
                 amount:            toMinorUnits(amount),
@@ -248,10 +261,10 @@ app.post('/api/initiate-auth', async (req, res) => {
             },
             browser_data: {
                 accept_header:         browser_data?.accept_header         || 'text/html,application/xhtml+xml',
-                color_depth:           String(browser_data?.color_depth    || '24'),
+                color_depth:           mapColorDepth(browser_data?.color_depth ?? 24),
                 ip:                    browser_data?.ip                    || '123.123.123.123',
-                java_enabled:          String(browser_data?.java_enabled   ?? 'false'),
-                javascript_enabled:    String(browser_data?.javascript_enabled ?? 'true'),
+                java_enabled:          mapBool(browser_data?.java_enabled  ?? 'false'),
+                javascript_enabled:    mapBool(browser_data?.javascript_enabled ?? 'true'),
                 language:              browser_data?.language              || 'en-GB',
                 screen_height:         String(browser_data?.screen_height  || '1080'),
                 screen_width:          String(browser_data?.screen_width   || '1920'),
@@ -369,6 +382,20 @@ app.post('/api/authorize-payment', async (req, res) => {
     } catch (err) {
         gpError(res, err);
     }
+});
+
+// ─── Health + Challenge notification ─────────────────────────────────────────
+
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', backend: 'nodejs', version: '1.0.0' });
+});
+
+app.all('/3ds/challenge-notification', (req, res) => {
+    res.setHeader('Content-Type', 'text/html');
+    res.send(`<!DOCTYPE html><html><body><script>
+        try { window.parent.postMessage({type:'authResult'},'*'); } catch(_){}
+        try { window.top.postMessage({type:'authResult'},'*'); } catch(_){}
+    </script></body></html>`);
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────

@@ -100,9 +100,10 @@ try {
 
     // Return access token to client
     echo json_encode([
-        'success' => true,
-        'token' => $responseData['token'],
-        'expiresIn' => $responseData['seconds_to_expire'] ?? 600
+        'success'     => true,
+        'token'       => $responseData['token'],
+        'expiresIn'   => $responseData['seconds_to_expire'] ?? 600,
+        'environment' => $_ENV['GP_ENVIRONMENT'] ?? 'sandbox',
     ]);
 
 } catch (Exception $e) {

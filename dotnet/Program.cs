@@ -94,6 +94,17 @@ async Task<(JsonElement root, bool ok, int status)> GpRequest(string method, str
 static string ToMinorUnits(string amount) => GpPayments.GpUtilities.ToMinorUnits(amount);
 static string TwoDigitYear(string year)   => GpPayments.GpUtilities.TwoDigitYear(year);
 
+static readonly Dictionary<int, string> ColorDepthMap = new()
+{
+    {1,"ONE_BIT"},{2,"TWO_BITS"},{4,"FOUR_BITS"},{8,"EIGHT_BITS"},
+    {15,"FIFTEEN_BITS"},{16,"SIXTEEN_BITS"},{24,"TWENTY_FOUR_BITS"},
+    {32,"THIRTY_TWO_BITS"},{48,"FORTY_EIGHT_BITS"}
+};
+static string MapColorDepth(string v) =>
+    int.TryParse(v, out var d) && ColorDepthMap.TryGetValue(d, out var s) ? s : "TWENTY_FOUR_BITS";
+static string MapBool(string v) =>
+    string.Equals(v, "true", StringComparison.OrdinalIgnoreCase) ? "TRUE" : "FALSE";
+
 IResult GpError(JsonElement root, int status)
 {
     var msg = root.TryGetProperty("error", out var e) && e.TryGetProperty("message", out var m)
@@ -109,6 +120,13 @@ IResult GpError(JsonElement root, int status)
 }
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
+
+app.MapGet("/api/health", () => Results.Ok(new { status = "ok", backend = "dotnet", version = "1.0.0" }));
+
+app.MapMethods("/3ds/challenge-notification", new[] { "GET", "POST" }, () =>
+    Results.Content(
+        "<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'authResult'},'*');}catch(_){}try{window.top.postMessage({type:'authResult'},'*');}catch(_){}</script></body></html>",
+        "text/html"));
 
 /**
  * POST /get-access-token
@@ -152,7 +170,8 @@ app.MapPost("/get-access-token", async () =>
         var token     = doc.GetProperty("token").GetString();
         var expiresIn = doc.TryGetProperty("seconds_to_expire", out var exp) ? exp.GetInt32() : 600;
 
-        return Results.Ok(new { success = true, token, expiresIn });
+        var gpEnv = Environment.GetEnvironmentVariable("GP_ENVIRONMENT") ?? "sandbox";
+        return Results.Ok(new { success = true, token, expiresIn, environment = gpEnv });
     }
     catch (Exception ex)
     {
@@ -203,12 +222,21 @@ app.MapPost("/api/check-enrollment", async (HttpRequest req) =>
             mu.ValueKind != JsonValueKind.Null)
         {
             mUrl  = mu.GetString();
-            var mJson = JsonSerializer.Serialize(new
+            if (tds.TryGetProperty("method_data", out var mdProp) &&
+                mdProp.TryGetProperty("encoded_method_data", out var emd) &&
+                emd.ValueKind != JsonValueKind.Null)
             {
-                threeDSServerTransID  = r.GetProperty("id").GetString(),
-                methodNotificationURL = methodUrl
-            });
-            mData = Convert.ToBase64String(Encoding.UTF8.GetBytes(mJson));
+                mData = emd.GetString();
+            }
+            else
+            {
+                var mJson = JsonSerializer.Serialize(new
+                {
+                    threeDSServerTransID  = r.GetProperty("id").GetString(),
+                    methodNotificationURL = methodUrl
+                });
+                mData = Convert.ToBase64String(Encoding.UTF8.GetBytes(mJson));
+            }
         }
 
         var tds2 = r.TryGetProperty("three_ds", out var t2) ? t2 : default;
@@ -247,14 +275,16 @@ app.MapPost("/api/initiate-auth", async (HttpRequest req) =>
 
         string Get(string k, string def = "") => root.TryGetProperty(k, out var v) ? v.GetString() ?? def : def;
 
-        var paymentToken        = Get("payment_token");
-        var serverTransIdRaw    = Get("server_trans_id");
-        var serverTransId       = serverTransIdRaw.StartsWith("AUT_") ? serverTransIdRaw[4..] : serverTransIdRaw;
-        var messageVersion      = Get("message_version", "2.1.0");
-        var methodUrlCompletion = Get("method_url_completion", "UNAVAILABLE");
+        var paymentToken              = Get("payment_token");
+        var serverTransIdRaw          = Get("server_trans_id");
+        var serverTransId             = serverTransIdRaw.StartsWith("AUT_") ? serverTransIdRaw[4..] : serverTransIdRaw;
+        var messageVersion            = Get("message_version", "2.1.0");
+        var methodUrlCompletionStatus = Get("method_url_completion_status", "NO");
 
         if (string.IsNullOrEmpty(paymentToken))
             return Results.BadRequest(new { success = false, error = "payment_token is required" });
+        if (string.IsNullOrEmpty(serverTransId))
+            return Results.BadRequest(new { success = false, error = "server_trans_id is required" });
 
         var order    = root.TryGetProperty("order", out var o) ? o : default;
         var amount   = order.ValueKind != JsonValueKind.Undefined && order.TryGetProperty("amount",   out var a) ? a.GetString()! : "10.00";
@@ -279,14 +309,14 @@ app.MapPost("/api/initiate-auth", async (HttpRequest req) =>
             amount         = ToMinorUnits(amount),
             currency,
             reference      = Guid.NewGuid().ToString(),
-            payment_method = new { entry_mode = "ECOM", id = paymentToken },
+            payment_method               = new { entry_mode = "ECOM", id = paymentToken },
+            method_url_completion_status = methodUrlCompletionStatus,
             three_ds = new
             {
-                source                = "BROWSER",
-                preference            = "NO_PREFERENCE",
-                message_version       = messageVersion,
-                server_trans_ref      = serverTransId,
-                method_url_completion = methodUrlCompletion
+                source           = "BROWSER",
+                preference       = "NO_PREFERENCE",
+                message_version  = messageVersion,
+                server_trans_ref = serverTransId,
             },
             order = new
             {
@@ -304,10 +334,10 @@ app.MapPost("/api/initiate-auth", async (HttpRequest req) =>
             browser_data = new
             {
                 accept_header         = Bd("accept_header",         "text/html,application/xhtml+xml"),
-                color_depth           = Bd("color_depth",           "24"),
+                color_depth           = MapColorDepth(Bd("color_depth",        "24")),
                 ip                    = Bd("ip",                    "123.123.123.123"),
-                java_enabled          = Bd("java_enabled",          "false"),
-                javascript_enabled    = Bd("javascript_enabled",    "true"),
+                java_enabled          = MapBool(Bd("java_enabled",             "false")),
+                javascript_enabled    = MapBool(Bd("javascript_enabled",       "true")),
                 language              = Bd("language",              "en-GB"),
                 screen_height         = Bd("screen_height",         "1080"),
                 screen_width          = Bd("screen_width",          "1920"),
@@ -354,7 +384,7 @@ app.MapPost("/api/get-auth-result", async (HttpRequest req) =>
     try
     {
         var root             = (await JsonDocument.ParseAsync(req.Body)).RootElement;
-        var serverTransIdRaw = root.GetProperty("server_trans_id").GetString();
+        var serverTransIdRaw = root.TryGetProperty("server_trans_id", out var stidProp) ? stidProp.GetString() : null;
         var serverTransId    = serverTransIdRaw?.StartsWith("AUT_") == true ? serverTransIdRaw[4..] : serverTransIdRaw;
 
         if (string.IsNullOrEmpty(serverTransId))

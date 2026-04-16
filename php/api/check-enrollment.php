@@ -42,11 +42,16 @@ try {
     $methodUrl  = $raw['three_ds']['method_url'] ?? null;
     $methodData = null;
     if ($methodUrl) {
-        $methodJson = json_encode([
-            'threeDSServerTransID'  => $raw['id'],
-            'methodNotificationURL' => getenv('METHOD_NOTIFICATION_URL') ?: '',
-        ]);
-        $methodData = base64_encode($methodJson);
+        $encodedMethodData = $raw['three_ds']['method_data']['encoded_method_data'] ?? null;
+        if ($encodedMethodData) {
+            $methodData = $encodedMethodData;
+        } else {
+            $methodJson = json_encode([
+                'threeDSServerTransID'  => $raw['id'],
+                'methodNotificationURL' => getenv('METHOD_NOTIFICATION_URL') ?: '',
+            ]);
+            $methodData = base64_encode($methodJson);
+        }
     }
 
     GpApiClient::jsonResponse([

@@ -14,14 +14,29 @@ if (!$paymentToken) {
     GpApiClient::jsonResponse(['success' => false, 'error' => 'payment_token is required'], 400);
 }
 
-$serverTransIdRaw    = $input['server_trans_id']        ?? '';
-$serverTransId       = preg_replace('/^AUT_/', '', $serverTransIdRaw);
-$messageVersion      = $input['message_version']         ?? '2.1.0';
-$methodUrlCompletion = $input['method_url_completion']   ?? 'UNAVAILABLE';
-$browserData         = $input['browser_data']            ?? [];
-$order               = $input['order']                   ?? [];
-$amount              = $order['amount']                  ?? '10.00';
-$currency            = $order['currency']                ?? 'GBP';
+$serverTransIdRaw         = $input['server_trans_id']             ?? '';
+$serverTransId            = preg_replace('/^AUT_/', '', $serverTransIdRaw);
+$messageVersion           = $input['message_version']              ?? '2.1.0';
+$methodUrlCompletionStatus = $input['method_url_completion_status'] ?? 'NO';
+$browserData              = $input['browser_data']                 ?? [];
+$order                    = $input['order']                        ?? [];
+$amount                   = $order['amount']                       ?? '10.00';
+$currency                 = $order['currency']                     ?? 'GBP';
+
+if (!$serverTransId) {
+    GpApiClient::jsonResponse(['success' => false, 'error' => 'server_trans_id is required'], 400);
+    exit;
+}
+
+function mapColorDepth(string $v): string {
+    $map = [1=>'ONE_BIT',2=>'TWO_BITS',4=>'FOUR_BITS',8=>'EIGHT_BITS',
+            15=>'FIFTEEN_BITS',16=>'SIXTEEN_BITS',24=>'TWENTY_FOUR_BITS',
+            32=>'THIRTY_TWO_BITS',48=>'FORTY_EIGHT_BITS'];
+    return $map[(int)$v] ?? 'TWENTY_FOUR_BITS';
+}
+function mapBool(string $v): string {
+    return strtolower($v) === 'true' ? 'TRUE' : 'FALSE';
+}
 
 try {
     $raw = GpApiClient::request('POST', '/authentications', [
@@ -37,12 +52,12 @@ try {
             'entry_mode' => 'ECOM',
             'id'         => $paymentToken,
         ],
+        'method_url_completion_status' => $methodUrlCompletionStatus,
         'three_ds' => [
-            'source'               => 'BROWSER',
-            'preference'           => 'NO_PREFERENCE',
-            'message_version'      => $messageVersion,
-            'server_trans_ref'     => $serverTransId,
-            'method_url_completion' => $methodUrlCompletion,
+            'source'           => 'BROWSER',
+            'preference'       => 'NO_PREFERENCE',
+            'message_version'  => $messageVersion,
+            'server_trans_ref' => $serverTransId,
         ],
         'order' => [
             'amount'            => GpApiClient::toMinorUnits($amount),
@@ -62,10 +77,10 @@ try {
         ],
         'browser_data' => [
             'accept_header'        => $browserData['accept_header']         ?? 'text/html,application/xhtml+xml',
-            'color_depth'          => (string) ($browserData['color_depth']        ?? '24'),
+            'color_depth'          => mapColorDepth((string)($browserData['color_depth']        ?? '24')),
             'ip'                   => $browserData['ip']                    ?? '123.123.123.123',
-            'java_enabled'         => (string) ($browserData['java_enabled']       ?? 'false'),
-            'javascript_enabled'   => (string) ($browserData['javascript_enabled'] ?? 'true'),
+            'java_enabled'         => mapBool((string)($browserData['java_enabled']       ?? 'false')),
+            'javascript_enabled'   => mapBool((string)($browserData['javascript_enabled'] ?? 'true')),
             'language'             => $browserData['language']              ?? 'en-GB',
             'screen_height'        => (string) ($browserData['screen_height']      ?? '1080'),
             'screen_width'         => (string) ($browserData['screen_width']       ?? '1920'),

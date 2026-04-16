@@ -372,7 +372,7 @@ app.post('/webhook', (req, res) => {
             setStep('enroll', 'done');
 
             // 2. Silent 3DS method
-            let methodCompletion = 'UNAVAILABLE';
+            let methodCompletion = 'NO';
             if (method_url && method_data) {
                 setStatus('Running 3DS method (background)…');
                 await execute3DSMethod(method_url, method_data);
@@ -386,7 +386,7 @@ app.post('/webhook', (req, res) => {
                 payment_token:        paymentToken,
                 server_trans_id,
                 message_version,
-                method_url_completion: methodCompletion,
+                method_url_completion_status: methodCompletion,
                 browser_data:         collectBrowserData(),
                 order:                { amount: '10.00', currency: 'GBP' }
             });
@@ -433,7 +433,7 @@ app.post('/webhook', (req, res) => {
             const data = await res.json();
             if (!data.success || !data.token) throw new Error(data.error || data.message || 'Token request failed');
 
-            window.GlobalPayments.configure({ accessToken: data.token, env: 'sandbox' });
+            window.GlobalPayments.configure({ accessToken: data.token, env: data.environment || 'sandbox' });
 
             const form = window.GlobalPayments.ui.form({
                 fields: {

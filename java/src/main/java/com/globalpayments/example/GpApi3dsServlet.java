@@ -43,7 +43,8 @@ import java.util.zip.GZIPInputStream;
     "/api/check-enrollment",
     "/api/initiate-auth",
     "/api/get-auth-result",
-    "/api/authorize-payment"
+    "/api/authorize-payment",
+    "/3ds/challenge-notification"
 })
 public class GpApi3dsServlet extends HttpServlet {
 
@@ -99,8 +100,12 @@ public class GpApi3dsServlet extends HttpServlet {
             throws ServletException, IOException {
         addCors(res);
         res.setContentType("application/json");
-        if ("/api/health".equals(req.getServletPath())) {
+        String path = req.getServletPath();
+        if ("/api/health".equals(path)) {
             res.getWriter().write("{\"status\":\"ok\",\"backend\":\"java\",\"version\":\"1.0.0\"}");
+        } else if ("/3ds/challenge-notification".equals(path)) {
+            res.setContentType("text/html");
+            res.getWriter().write("<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'authResult'},'*');}catch(_){}try{window.top.postMessage({type:'authResult'},'*');}catch(_){}</script></body></html>");
         } else {
             res.setStatus(404);
             res.getWriter().write("{\"error\":\"Not found\"}");
@@ -118,10 +123,14 @@ public class GpApi3dsServlet extends HttpServlet {
 
         try {
             switch (req.getServletPath()) {
-                case "/api/check-enrollment"  -> handleCheckEnrollment(input, res);
-                case "/api/initiate-auth"     -> handleInitiateAuth(input, res);
-                case "/api/get-auth-result"   -> handleGetAuthResult(input, res);
-                case "/api/authorize-payment" -> handleAuthorizePayment(input, res);
+                case "/api/check-enrollment"        -> handleCheckEnrollment(input, res);
+                case "/api/initiate-auth"           -> handleInitiateAuth(input, res);
+                case "/api/get-auth-result"         -> handleGetAuthResult(input, res);
+                case "/api/authorize-payment"       -> handleAuthorizePayment(input, res);
+                case "/3ds/challenge-notification"  -> {
+                    res.setContentType("text/html");
+                    res.getWriter().write("<!DOCTYPE html><html><body><script>try{window.parent.postMessage({type:'authResult'},'*');}catch(_){}try{window.top.postMessage({type:'authResult'},'*');}catch(_){}</script></body></html>");
+                }
                 default -> { res.setStatus(404); res.getWriter().write("{\"error\":\"Not found\"}"); }
             }
         } catch (Exception e) {
@@ -168,11 +177,16 @@ public class GpApi3dsServlet extends HttpServlet {
         JSONObject tds = raw.optJSONObject("three_ds");
         if (tds != null && tds.has("method_url") && !tds.isNull("method_url")) {
             methodUrl = tds.getString("method_url");
-            String mJson = new JSONObject()
-                .put("threeDSServerTransID",  raw.getString("id"))
-                .put("methodNotificationURL", env("METHOD_NOTIFICATION_URL", ""))
-                .toString();
-            methodData = Base64.getEncoder().encodeToString(mJson.getBytes(StandardCharsets.UTF_8));
+            JSONObject mdObj = tds.optJSONObject("method_data");
+            if (mdObj != null && mdObj.has("encoded_method_data") && !mdObj.isNull("encoded_method_data")) {
+                methodData = mdObj.getString("encoded_method_data");
+            } else {
+                String mJson = new JSONObject()
+                    .put("threeDSServerTransID",  raw.getString("id"))
+                    .put("methodNotificationURL", env("METHOD_NOTIFICATION_URL", ""))
+                    .toString();
+                methodData = Base64.getEncoder().encodeToString(mJson.getBytes(StandardCharsets.UTF_8));
+            }
         }
 
         JSONObject data = new JSONObject();
@@ -187,15 +201,20 @@ public class GpApi3dsServlet extends HttpServlet {
     }
 
     private void handleInitiateAuth(JSONObject in, HttpServletResponse res) throws Exception {
-        String paymentToken        = in.optString("payment_token", "");
-        String serverTransIdRaw    = in.optString("server_trans_id", "");
-        String serverTransId       = serverTransIdRaw.startsWith("AUT_") ? serverTransIdRaw.substring(4) : serverTransIdRaw;
-        String messageVersion      = in.optString("message_version",      "2.1.0");
-        String methodUrlCompletion = in.optString("method_url_completion", "UNAVAILABLE");
+        String paymentToken              = in.optString("payment_token", "");
+        String serverTransIdRaw          = in.optString("server_trans_id", "");
+        String serverTransId             = serverTransIdRaw.startsWith("AUT_") ? serverTransIdRaw.substring(4) : serverTransIdRaw;
+        String messageVersion            = in.optString("message_version",             "2.1.0");
+        String methodUrlCompletionStatus = in.optString("method_url_completion_status", "NO");
 
         if (paymentToken.isEmpty()) {
             res.setStatus(400);
             res.getWriter().write("{\"success\":false,\"error\":\"payment_token is required\"}");
+            return;
+        }
+        if (serverTransId.isEmpty()) {
+            res.setStatus(400);
+            res.getWriter().write("{\"success\":false,\"error\":\"server_trans_id is required\"}");
             return;
         }
 
@@ -218,12 +237,12 @@ public class GpApi3dsServlet extends HttpServlet {
         payload.put("payment_method", new JSONObject()
             .put("entry_mode", "ECOM")
             .put("id", paymentToken));
+        payload.put("method_url_completion_status", methodUrlCompletionStatus);
         payload.put("three_ds", new JSONObject()
-            .put("source",                "BROWSER")
-            .put("preference",            "NO_PREFERENCE")
-            .put("message_version",       messageVersion)
-            .put("server_trans_ref",      serverTransId)
-            .put("method_url_completion", methodUrlCompletion));
+            .put("source",           "BROWSER")
+            .put("preference",       "NO_PREFERENCE")
+            .put("message_version",  messageVersion)
+            .put("server_trans_ref", serverTransId));
         payload.put("order", new JSONObject()
             .put("amount",            toMinorUnits(amount))
             .put("currency",          currency)
@@ -239,10 +258,10 @@ public class GpApi3dsServlet extends HttpServlet {
                 .put("country",     "826")));
         payload.put("browser_data", new JSONObject()
             .put("accept_header",         bdField(bd, "accept_header",         "text/html,application/xhtml+xml"))
-            .put("color_depth",           bdField(bd, "color_depth",           "24"))
+            .put("color_depth",           mapColorDepth(bdField(bd, "color_depth", "24")))
             .put("ip",                    bdField(bd, "ip",                    "123.123.123.123"))
-            .put("java_enabled",          bdField(bd, "java_enabled",          "false"))
-            .put("javascript_enabled",    bdField(bd, "javascript_enabled",    "true"))
+            .put("java_enabled",          mapBool(bdField(bd, "java_enabled",          "false")))
+            .put("javascript_enabled",    mapBool(bdField(bd, "javascript_enabled",    "true")))
             .put("language",              bdField(bd, "language",              "en-GB"))
             .put("screen_height",         bdField(bd, "screen_height",         "1080"))
             .put("screen_width",          bdField(bd, "screen_width",          "1920"))
@@ -453,7 +472,15 @@ public class GpApi3dsServlet extends HttpServlet {
         out.put("success", false);
         out.put("error",   e.getMessage());
         if (rawBody != null) {
-            try { out.put("raw", new JSONObject(rawBody)); } catch (Exception ignored) {}
+            try {
+                JSONObject rawJson = new JSONObject(rawBody);
+                out.put("raw", rawJson);
+                JSONObject errObj = rawJson.optJSONObject("error");
+                if (errObj != null) {
+                    out.put("gp_error_code",   errObj.optString("code",   ""));
+                    out.put("gp_error_detail", errObj.optString("detail", ""));
+                }
+            } catch (Exception ignored) {}
         }
         res.getWriter().write(out.toString());
     }
@@ -475,6 +502,27 @@ public class GpApi3dsServlet extends HttpServlet {
     private static String bdField(JSONObject bd, String key, String def) {
         if (bd == null) return def;
         return bd.has(key) && !bd.isNull(key) ? bd.get(key).toString() : def;
+    }
+
+    private static final java.util.Map<Integer, String> COLOR_DEPTH_MAP;
+    static {
+        COLOR_DEPTH_MAP = new java.util.HashMap<>();
+        COLOR_DEPTH_MAP.put(1,  "ONE_BIT");
+        COLOR_DEPTH_MAP.put(2,  "TWO_BITS");
+        COLOR_DEPTH_MAP.put(4,  "FOUR_BITS");
+        COLOR_DEPTH_MAP.put(8,  "EIGHT_BITS");
+        COLOR_DEPTH_MAP.put(15, "FIFTEEN_BITS");
+        COLOR_DEPTH_MAP.put(16, "SIXTEEN_BITS");
+        COLOR_DEPTH_MAP.put(24, "TWENTY_FOUR_BITS");
+        COLOR_DEPTH_MAP.put(32, "THIRTY_TWO_BITS");
+        COLOR_DEPTH_MAP.put(48, "FORTY_EIGHT_BITS");
+    }
+    private static String mapColorDepth(String v) {
+        try { return COLOR_DEPTH_MAP.getOrDefault(Integer.parseInt(v), "TWENTY_FOUR_BITS"); }
+        catch (NumberFormatException e) { return "TWENTY_FOUR_BITS"; }
+    }
+    private static String mapBool(String v) {
+        return "true".equalsIgnoreCase(v) ? "TRUE" : "FALSE";
     }
 
     private static String toMinorUnits(String amount) {
