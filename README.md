@@ -96,7 +96,7 @@ ngrok http 8000
 | Challenge required | 4012 0010 3844 3335 |
 | Declined | 4000 1200 0000 1154 |
 
-Use any future expiry date and any 3-digit CVV. More test cards at [developer.globalpay.com/resources/test-cards](https://developer.globalpay.com/resources/test-cards).
+Use any future expiry date and any 3-digit CVV. More test cards at [developer.globalpayments.com/resources/test-cards](https://developer.globalpayments.com/resources/test-cards).
 
 ---
 
@@ -181,10 +181,22 @@ BASE_URL=http://localhost:8000 bash tests/integration/run-integration-tests.sh
 
 ## Resources
 
-- [Global Payments developer portal](https://developer.globalpay.com/)
-- [Drop-In UI guide](https://developer.globalpay.com/docs/payments/online/drop-in-ui-guide)
-- [GP-API reference](https://developer.globalpay.com/api)
+- [Global Payments developer portal](https://developer.globalpayments.com/)
+- [Drop-In UI guide](https://developer.globalpayments.com/docs/payments/online/drop-in-ui-guide)
+- [GP-API reference](https://developer.globalpayments.com/api/references-overview)
 - [PHP SDK](https://github.com/globalpayments/php-sdk)
 - [Node.js SDK](https://github.com/globalpayments/node-sdk)
 - [Java SDK](https://github.com/globalpayments/java-sdk)
 - [.NET SDK](https://github.com/globalpayments/dotnet-sdk)
+
+---
+
+## Community
+
+- 🌐 **Developer Portal** — [developer.globalpayments.com](https://developer.globalpayments.com)
+- 💬 **Discord** — [Join the community](https://discord.gg/myER9G9qkc)
+- 📋 **GitHub Discussions** — [github.com/orgs/globalpayments/discussions](https://github.com/orgs/globalpayments/discussions)
+- 📧 **Newsletter** — [Subscribe](https://www.globalpayments.com/en-gb/modals/newsletter)
+- 💼 **LinkedIn** — [Global Payments for Developers](https://www.linkedin.com/showcase/global-payments-for-developers/posts/?feedView=all)
+
+Have a question or found a bug? [Open an issue](https://github.com/globalpayments-samples/online-card-payments/issues) or reach out at [communityexperience@globalpay.com](mailto:communityexperience@globalpay.com).

@@ -55,3 +55,13 @@ Open `http://localhost:8000` to load the payment form.
 Token caching uses a file at `/tmp/gpapi_token.json`. This works fine for the built-in PHP server (single process). In a production setup with multiple workers you would want a shared cache like Redis or Memcached.
 
 The notification endpoints (`/3ds/method-notification`, `/3ds/challenge-notification`) receive form-encoded POST bodies from the issuer, not JSON. `router.php` routes these before any JSON parsing happens.
+
+---
+
+## Resources
+
+- [Parent Project README](../README.md)
+- [Global Payments Developer Portal](https://developer.globalpayments.com/)
+- [API Reference](https://developer.globalpayments.com/api/references-overview)
+- [PHP SDK](https://github.com/globalpayments/php-sdk)
+- [Test Cards](https://developer.globalpayments.com/resources/test-cards)

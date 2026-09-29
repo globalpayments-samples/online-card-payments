@@ -56,3 +56,24 @@ GZIP decompression is handled automatically via `HttpClientHandler { AutomaticDe
 Token state is held in process-level variables (`cachedToken`, `tokenExpiresAt`). This is fine for a single-instance deployment but would need a shared cache for horizontal scaling.
 
 `TwoDigitYear` in `GpUtilities` is available for use but not currently called by any endpoint. It is kept because the unit tests cover it.
+
+---
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| `dotnet` command not found | Install the .NET 9 SDK. Run `dotnet --version` to check |
+| Build fails | Run `dotnet restore` before `dotnet run` |
+| Port already in use | Set `PORT` in `.env` to a free port, or stop whatever is using 8000 |
+| `.env` not loading | Verify `.env` file exists in the language directory (not project root) |
+
+---
+
+## Resources
+
+- [Parent Project README](../README.md)
+- [Global Payments Developer Portal](https://developer.globalpayments.com/)
+- [API Reference](https://developer.globalpayments.com/api/references-overview)
+- [.NET SDK](https://github.com/globalpayments/dotnet-sdk)
+- [Test Cards](https://developer.globalpayments.com/resources/test-cards)
