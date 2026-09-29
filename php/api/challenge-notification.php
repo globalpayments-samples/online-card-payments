@@ -1,7 +1,10 @@
 <?php
 declare(strict_types=1);
 header('Content-Type: text/html');
-$nonce = isset($_GET['nonce']) ? json_encode((string) $_GET['nonce']) : 'undefined';
+// Only a UUID-like nonce goes into the script, anything else is ignored
+$nonce = isset($_GET['nonce']) && preg_match('/^[A-Za-z0-9-]{1,64}$/', (string) $_GET['nonce'])
+    ? "'" . $_GET['nonce'] . "'"
+    : 'undefined';
 ?><!DOCTYPE html>
 <html>
 <body>

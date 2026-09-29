@@ -95,6 +95,10 @@ static string ToMinorUnits(string amount) => GpPayments.GpUtilities.ToMinorUnits
 
 static string MapColorDepth(string v) => GpPayments.GpUtilities.MapColorDepth(v);
 static string MapBool(string v)       => GpPayments.GpUtilities.MapBool(v);
+// The nonce goes straight into an inline script, so only let through what the
+// page generates (a UUID). Anything else comes back as undefined.
+static string NotificationNonce(string nonce) =>
+    System.Text.RegularExpressions.Regex.IsMatch(nonce ?? "", "^[A-Za-z0-9-]{1,64}$") ? $"'{nonce}'" : "undefined";
 
 IResult GpError(JsonElement root, int status)
 {
@@ -116,7 +120,7 @@ app.MapGet("/api/health", () => Results.Ok(new { status = "ok", backend = "dotne
 
 app.MapMethods("/3ds/challenge-notification", new[] { "GET", "POST" }, (HttpRequest req) =>
 {
-    var nonce = req.Query.TryGetValue("nonce", out var n) ? System.Text.Json.JsonSerializer.Serialize(n.ToString()) : "undefined";
+    var nonce = NotificationNonce(req.Query["nonce"].ToString());
     return Results.Content(
         $"<!DOCTYPE html><html><body><script>var msg={{type:'authResult',nonce:{nonce}}};try{{window.parent.postMessage(msg,'*');}}catch(_){{}}try{{window.top.postMessage(msg,'*');}}catch(_){{}}</script></body></html>",
         "text/html");
@@ -124,7 +128,7 @@ app.MapMethods("/3ds/challenge-notification", new[] { "GET", "POST" }, (HttpRequ
 
 app.MapMethods("/3ds/method-notification", new[] { "GET", "POST" }, (HttpRequest req) =>
 {
-    var nonce = req.Query.TryGetValue("nonce", out var n) ? System.Text.Json.JsonSerializer.Serialize(n.ToString()) : "undefined";
+    var nonce = NotificationNonce(req.Query["nonce"].ToString());
     return Results.Content(
         $"<!DOCTYPE html><html><body><script>var msg={{type:'methodComplete',nonce:{nonce}}};try{{window.parent.postMessage(msg,'*');}}catch(_){{}}try{{window.top.postMessage(msg,'*');}}catch(_){{}}</script></body></html>",
         "text/html");

@@ -392,8 +392,16 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', backend: 'nodejs', version: '1.0.0' });
 });
 
+// The nonce goes straight into an inline script, so only let through what the
+// page generates (a UUID). Anything else comes back as undefined and the page
+// ignores the message.
+function notificationNonce(value) {
+    const nonce = String(value || '');
+    return /^[A-Za-z0-9-]{1,64}$/.test(nonce) ? `'${nonce}'` : 'undefined';
+}
+
 app.all('/3ds/challenge-notification', (req, res) => {
-    const nonce = req.query.nonce ? JSON.stringify(String(req.query.nonce)) : 'undefined';
+    const nonce = notificationNonce(req.query.nonce);
     res.setHeader('Content-Type', 'text/html');
     res.send(`<!DOCTYPE html><html><body><script>
         var msg = {type:'authResult',nonce:${nonce}};
@@ -403,7 +411,7 @@ app.all('/3ds/challenge-notification', (req, res) => {
 });
 
 app.all('/3ds/method-notification', (req, res) => {
-    const nonce = req.query.nonce ? JSON.stringify(String(req.query.nonce)) : 'undefined';
+    const nonce = notificationNonce(req.query.nonce);
     res.setHeader('Content-Type', 'text/html');
     res.send(`<!DOCTYPE html><html><body><script>
         var msg = {type:'methodComplete',nonce:${nonce}};

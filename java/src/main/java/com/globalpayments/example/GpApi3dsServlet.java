@@ -107,12 +107,12 @@ public class GpApi3dsServlet extends HttpServlet {
         } else if ("/3ds/challenge-notification".equals(path)) {
             res.setContentType("text/html");
             String nonce = req.getParameter("nonce");
-            String nonceJs = nonce != null ? org.json.JSONObject.quote(nonce) : "undefined";
+            String nonceJs = notificationNonce(nonce);
             res.getWriter().write("<!DOCTYPE html><html><body><script>var msg={type:'authResult',nonce:" + nonceJs + "};try{window.parent.postMessage(msg,'*');}catch(_){}try{window.top.postMessage(msg,'*');}catch(_){}</script></body></html>");
         } else if ("/3ds/method-notification".equals(path)) {
             res.setContentType("text/html");
             String nonce = req.getParameter("nonce");
-            String nonceJs = nonce != null ? org.json.JSONObject.quote(nonce) : "undefined";
+            String nonceJs = notificationNonce(nonce);
             res.getWriter().write("<!DOCTYPE html><html><body><script>var msg={type:'methodComplete',nonce:" + nonceJs + "};try{window.parent.postMessage(msg,'*');}catch(_){}try{window.top.postMessage(msg,'*');}catch(_){}</script></body></html>");
         } else {
             res.setStatus(404);
@@ -130,14 +130,14 @@ public class GpApi3dsServlet extends HttpServlet {
         if ("/3ds/challenge-notification".equals(path)) {
             res.setContentType("text/html");
             String nonce = req.getParameter("nonce");
-            String nonceJs = nonce != null ? org.json.JSONObject.quote(nonce) : "undefined";
+            String nonceJs = notificationNonce(nonce);
             res.getWriter().write("<!DOCTYPE html><html><body><script>var msg={type:'authResult',nonce:" + nonceJs + "};try{window.parent.postMessage(msg,'*');}catch(_){}try{window.top.postMessage(msg,'*');}catch(_){}</script></body></html>");
             return;
         }
         if ("/3ds/method-notification".equals(path)) {
             res.setContentType("text/html");
             String nonce = req.getParameter("nonce");
-            String nonceJs = nonce != null ? org.json.JSONObject.quote(nonce) : "undefined";
+            String nonceJs = notificationNonce(nonce);
             res.getWriter().write("<!DOCTYPE html><html><body><script>var msg={type:'methodComplete',nonce:" + nonceJs + "};try{window.parent.postMessage(msg,'*');}catch(_){}try{window.top.postMessage(msg,'*');}catch(_){}</script></body></html>");
             return;
         }
@@ -515,6 +515,12 @@ public class GpApi3dsServlet extends HttpServlet {
     }
 
     // ── Utilities ─────────────────────────────────────────────────────────────
+
+    // The nonce goes straight into an inline script, so only let through what the
+    // page generates (a UUID). Anything else comes back as undefined.
+    private static String notificationNonce(String nonce) {
+        return nonce != null && nonce.matches("[A-Za-z0-9-]{1,64}") ? "'" + nonce + "'" : "undefined";
+    }
 
     private static String decodeBody(HttpResponse<byte[]> resp) throws IOException {
         byte[] bytes = resp.body();
