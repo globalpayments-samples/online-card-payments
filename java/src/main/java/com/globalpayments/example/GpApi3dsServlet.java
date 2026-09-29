@@ -519,7 +519,12 @@ public class GpApi3dsServlet extends HttpServlet {
     // The nonce goes straight into an inline script, so only let through what the
     // page generates (a UUID). Anything else comes back as undefined.
     private static String notificationNonce(String nonce) {
-        return nonce != null && nonce.matches("[A-Za-z0-9-]{1,64}") ? "'" + nonce + "'" : "undefined";
+        if (nonce == null) return "undefined";
+        try {
+            return "'" + java.util.UUID.fromString(nonce) + "'";
+        } catch (IllegalArgumentException e) {
+            return "undefined";
+        }
     }
 
     private static String decodeBody(HttpResponse<byte[]> resp) throws IOException {
