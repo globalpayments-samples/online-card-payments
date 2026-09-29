@@ -50,7 +50,7 @@ mvn test
 
 ## Notes
 
-Token caching uses `static volatile` fields on `ProcessPaymentServlet` with a `ReentrantLock` for thread safety.
+Token caching uses `static volatile` fields on `GpApi3dsServlet` with a `ReentrantLock` for thread safety.
 
 GP-API responses are GZIP-compressed. The servlet decodes them manually using `java.util.zip.GZIPInputStream`.
 
