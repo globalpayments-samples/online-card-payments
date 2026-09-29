@@ -1,19 +1,9 @@
-FROM mcr.microsoft.com/playwright:v1.53.1-jammy
+FROM alpine:3.20
 
 WORKDIR /app
 
-# Install Node.js dependencies
-COPY package*.json ./
-RUN npm ci
+RUN apk add --no-cache bash curl jq
 
-# Copy test files
 COPY tests ./tests
-COPY playwright.config.js .
 
-# Create directories for test output
-RUN mkdir -p test-results playwright-report
-
-# Install additional tools for healthchecks
-RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
-
-CMD ["npm", "run", "test:ci"]
+CMD ["bash", "-lc", "set -euo pipefail; for item in NODE:$NODE_BASE_URL PHP:$PHP_BASE_URL JAVA:$JAVA_BASE_URL DOTNET:$DOTNET_BASE_URL; do name=${item%%:*}; url=${item#*:}; echo \"\\n=== $name integration tests ($url) ===\"; BASE_URL=\"$url\" bash tests/integration/run-integration-tests.sh; done"]
