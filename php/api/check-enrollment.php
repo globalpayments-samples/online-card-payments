@@ -1,0 +1,80 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../src/GpApiClient.php';
+
+use Dotenv\Dotenv;
+$dotenv = Dotenv::createUnsafeMutable(__DIR__ . '/..');
+$dotenv->load();
+
+$input        = json_decode(file_get_contents('php://input'), true) ?? [];
+$paymentToken = $input['payment_token'] ?? '';
+$flowNonce    = $input['flow_nonce']    ?? '';
+
+if (!$paymentToken) {
+    GpApiClient::jsonResponse(['success' => false, 'error' => 'payment_token is required'], 400);
+}
+
+$nonceQuery         = $flowNonce ? ('?nonce=' . urlencode($flowNonce)) : '';
+$challengeUrl       = (getenv('CHALLENGE_NOTIFICATION_URL') ?: null);
+$methodNotifyUrl    = (getenv('METHOD_NOTIFICATION_URL')    ?: null);
+if ($nonceQuery) {
+    $challengeUrl    = $challengeUrl    ? $challengeUrl    . $nonceQuery : null;
+    $methodNotifyUrl = $methodNotifyUrl ? $methodNotifyUrl . $nonceQuery : null;
+}
+
+try {
+    $raw = GpApiClient::request('POST', '/authentications', [
+        'account_name'   => getenv('GP_ACCOUNT_NAME') ?: 'transaction_processing',
+        'account_id'     => getenv('GP_ACCOUNT_ID')   ?: null,
+        'merchant_id'    => getenv('GP_MERCHANT_ID')  ?: null,
+        'channel'        => 'CNP',
+        'country'        => 'GB',
+        'amount'         => '1000',
+        'currency'       => 'GBP',
+        'reference'      => GpApiClient::uuid(),
+        'payment_method' => [
+            'entry_mode' => 'ECOM',
+            'id'         => $paymentToken,
+        ],
+        'three_ds' => [
+            'source'          => 'BROWSER',
+            'preference'      => 'NO_PREFERENCE',
+            'message_version' => '2.2.0',
+        ],
+        'notifications' => [
+            'challenge_return_url'       => $challengeUrl,
+            'three_ds_method_return_url' => $methodNotifyUrl,
+        ],
+    ]);
+
+    $methodUrl  = $raw['three_ds']['method_url'] ?? null;
+    $methodData = null;
+    if ($methodUrl) {
+        $encodedMethodData = $raw['three_ds']['method_data']['encoded_method_data'] ?? null;
+        if ($encodedMethodData) {
+            $methodData = $encodedMethodData;
+        } else {
+            $methodJson = json_encode([
+                'threeDSServerTransID'  => $raw['id'],
+                'methodNotificationURL' => $methodNotifyUrl ?: '',
+            ]);
+            $methodData = base64_encode($methodJson);
+        }
+    }
+
+    GpApiClient::jsonResponse([
+        'success' => true,
+        'data' => [
+            'server_trans_id'  => $raw['id'],
+            'server_trans_ref' => $raw['three_ds']['server_trans_ref'] ?? null,
+            'enrolled'         => $raw['three_ds']['enrolled_status']  ?? null,
+            'message_version'  => $raw['three_ds']['message_version']  ?? null,
+            'method_url'       => $methodUrl,
+            'method_data'      => $methodData,
+        ],
+        'raw' => $raw,
+    ]);
+} catch (\Throwable $e) {
+    GpApiClient::errorResponse($e);
+}
