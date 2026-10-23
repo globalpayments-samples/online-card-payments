@@ -58,8 +58,7 @@ GP_ENVIRONMENT=sandbox
 
 **PHP:**
 ```bash
-composer install
-php -S localhost:8000
+./run.sh
 ```
 
 **Node.js:**

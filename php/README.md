@@ -29,7 +29,7 @@ composer install
 
 ### 4. Run Server
 ```bash
-php -S localhost:8000
+./run.sh
 ```
 
 ### 5. Test Payment
@@ -49,7 +49,7 @@ php -S localhost:8000
 
 ## Requirements
 
-- PHP 7.4 or later
+- PHP 8.2.35+, 8.3.36+, 8.4.27+, or 8.5.12+ for the web server
 - cURL extension
 - JSON extension
 - Composer
@@ -167,7 +167,7 @@ GP_ENVIRONMENT=sandbox
 
 ### Manual Test Flow
 
-1. Start server: `php -S localhost:8000`
+1. Start server: `./run.sh`
 2. Open http://localhost:8000
 3. Enter amount (e.g., 10.00)
 4. Enter test card: **4263 9826 4026 9299**
@@ -188,7 +188,7 @@ GP_ENVIRONMENT=sandbox
 |-------|-------|----------|
 | Failed to get access token | Invalid credentials | Verify GP_APP_ID and GP_APP_KEY in .env |
 | Access token and merchant info do not match | Account name mismatch | Comment out GP_ACCOUNT_NAME in .env |
-| Drop-In UI not loading | Server not running | Run `php -S localhost:8000` |
+| Drop-In UI not loading | Server not running | Run `./run.sh` |
 | Transaction declined | Invalid card/amount | Use test cards, check amount > 0 |
 | CORS errors | Wrong URL | Access via http://localhost:8000 |
 
@@ -322,7 +322,7 @@ header('Access-Control-Allow-Origin: https://yourdomain.com');
 **Symptoms:** `composer install` fails
 
 **Solutions:**
-1. Ensure PHP 7.4+ is installed: `php -v`
+1. Ensure PHP 8.2.35+, 8.3.36+, 8.4.27+, or 8.5.12+ is installed: `php -v`
 2. Update Composer: `composer self-update`
 3. Clear Composer cache: `composer clear-cache`
 4. Delete vendor folder and try again
