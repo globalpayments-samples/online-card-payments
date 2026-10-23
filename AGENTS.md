@@ -126,7 +126,7 @@ These demos have no authentication on any endpoint, log nothing about transactio
 ## How to Run
 
 ```bash
-cd php && ./run.sh       # PHP, :8000 (composer install + php -S 0.0.0.0:$PORT router.php)
+cd php && ./run.sh       # PHP, :8000 (composer install, loopback by default, HOST=0.0.0.0 to expose)
 cd nodejs && ./run.sh    # Node.js — :8000 (npm install + npm start)
 cd java && ./run.sh      # Java — :8000 (mvn clean package cargo:run; cargo.servlet.port=8000 in pom.xml)
 cd dotnet && ./run.sh    # .NET — :8000 (dotnet restore + dotnet run; honors PORT env)

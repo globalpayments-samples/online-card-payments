@@ -44,8 +44,7 @@ npm start
 
 PHP:
 ```bash
-composer install
-php -S localhost:8000 router.php
+./run.sh
 ```
 
 Java:

@@ -4,7 +4,7 @@ Built-in PHP server implementation of the GP-API 3DS2 payment flow.
 
 ## Requirements
 
-- PHP 8.0 or later (with `curl` and `json` extensions)
+- PHP 8.2.35+, 8.3.36+, 8.4.27+, or 8.5.12+ (with `curl` and `json` extensions)
 - Composer
 - GP-API sandbox credentials
 
@@ -14,7 +14,7 @@ Built-in PHP server implementation of the GP-API 3DS2 payment flow.
 cp .env.sample .env
 # fill in GP_APP_ID, GP_APP_KEY, and the notification URLs
 composer install
-php -S localhost:8000 router.php
+./run.sh
 ```
 
 Open `http://localhost:8000` to load the payment form.

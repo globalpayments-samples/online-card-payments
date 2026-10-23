@@ -2,7 +2,7 @@
 /**
  * PHP built-in server router for GP-API 3DS2 backend.
  * Dispatches /api/* and legacy /get-access-token requests.
- * Usage: php -S 0.0.0.0:8000 router.php
+ * Usage: ./run.sh
  */
 
 $uri    = $_SERVER['REQUEST_URI'];
