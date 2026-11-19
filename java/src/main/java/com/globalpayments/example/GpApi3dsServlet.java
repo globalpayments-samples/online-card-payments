@@ -53,6 +53,13 @@ public class GpApi3dsServlet extends HttpServlet {
     private static final String GP_VERSION = "2021-03-22";
 
     private static final HttpClient HTTP = HttpClient.newHttpClient();
+    private static final java.util.logging.Logger LOG =
+        java.util.logging.Logger.getLogger(GpApi3dsServlet.class.getName());
+
+    /** A GP API or setup error. Its message is shown on the page, anything else is not. */
+    private static class GpApiException extends RuntimeException {
+        GpApiException(String message) { super(message); }
+    }
 
     // Token cache
     private static final ReentrantLock TOKEN_LOCK = new ReentrantLock();
@@ -423,7 +430,7 @@ public class GpApi3dsServlet extends HttpServlet {
             String msg = result.optJSONObject("error") != null
                 ? result.getJSONObject("error").optString("message", "GP-API error " + resp.statusCode())
                 : "GP-API error " + resp.statusCode();
-            RuntimeException ex = new RuntimeException(msg);
+            GpApiException ex = new GpApiException(msg);
             ex.addSuppressed(new RuntimeException("STATUS:" + resp.statusCode()));
             ex.addSuppressed(new RuntimeException("RAW:" + bodyStr));
             throw ex;
@@ -447,7 +454,7 @@ public class GpApi3dsServlet extends HttpServlet {
     private String generateToken() throws Exception {
         String appId  = env("GP_APP_ID",  "");
         String appKey = env("GP_APP_KEY", "");
-        if (appId.isEmpty() || appKey.isEmpty()) throw new Exception("GP_APP_ID and GP_APP_KEY must be set");
+        if (appId.isEmpty() || appKey.isEmpty()) throw new GpApiException("GP_APP_ID and GP_APP_KEY must be set");
 
         String nonce  = Instant.now().toString();
         String secret = sha512Hex(nonce + appKey);
@@ -468,7 +475,7 @@ public class GpApi3dsServlet extends HttpServlet {
         HttpResponse<byte[]> resp = HTTP.send(req, HttpResponse.BodyHandlers.ofByteArray());
         String tokenBody = decodeBody(resp);
         if (resp.statusCode() < 200 || resp.statusCode() >= 300)
-            throw new Exception("Token generation failed (" + resp.statusCode() + "): " + tokenBody);
+            throw new GpApiException("Token generation failed (" + resp.statusCode() + "): " + tokenBody);
 
         JSONObject result = new JSONObject(tokenBody);
         cachedToken    = result.getString("token");
@@ -488,6 +495,16 @@ public class GpApi3dsServlet extends HttpServlet {
     }
 
     private static void writeError(HttpServletResponse res, Exception e, int status) throws IOException {
+        if (!(e instanceof GpApiException)) {
+            // Keep the details in the server log, the page only gets a generic message
+            LOG.log(java.util.logging.Level.SEVERE, "Request failed", e);
+            res.setStatus(status);
+            res.getWriter().write(new JSONObject()
+                .put("success", false)
+                .put("error", "Unexpected server error, see the server log")
+                .toString());
+            return;
+        }
         int httpStatus = status;
         String rawBody = null;
         for (Throwable s : e.getSuppressed()) {
