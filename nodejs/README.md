@@ -4,7 +4,7 @@ Express 4 implementation of the GP-API 3DS2 payment flow.
 
 ## Requirements
 
-- Node.js 18 or later
+- Node.js 24 or later
 - npm
 - GP-API sandbox credentials
 
@@ -60,7 +60,7 @@ Token state is held in memory at the module level in `auth.js`. A single process
 
 | Issue | Solution |
 |-------|----------|
-| `npm install` fails | Ensure Node.js 18+ is installed. Run `node -v` to check version |
+| `npm install` fails | Ensure Node.js 24+ is installed. Run `node -v` to check version |
 | Port already in use | Set `PORT=3001` in `.env` or kill existing process on port 8000 |
 | `.env` not loading | Verify `.env` file exists in the language directory (not project root) |
 | Module not found errors | Delete `node_modules/` and run `npm install` again |
