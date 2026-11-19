@@ -4,7 +4,7 @@ ASP.NET Core 9 minimal API implementation of the GP-API 3DS2 payment flow.
 
 ## Requirements
 
-- .NET 9 SDK
+- .NET 10 SDK
 - GP-API sandbox credentials
 
 ## Setup
@@ -63,7 +63,7 @@ Token state is held in process-level variables (`cachedToken`, `tokenExpiresAt`)
 
 | Issue | Solution |
 |-------|----------|
-| `dotnet` command not found | Install the .NET 9 SDK. Run `dotnet --version` to check |
+| `dotnet` command not found | Install the .NET 10 SDK. Run `dotnet --version` to check |
 | Build fails | Run `dotnet restore` before `dotnet run` |
 | Port already in use | Set `PORT` in `.env` to a free port, or stop whatever is using 8000 |
 | `.env` not loading | Verify `.env` file exists in the language directory (not project root) |

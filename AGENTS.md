@@ -46,7 +46,7 @@
 - [`dotnet/Utilities.cs`](dotnet/Utilities.cs): `GpUtilities.ToMinorUnits`, `TwoDigitYear`, `MapColorDepth`, `MapBool`
 - [`dotnet/wwwroot/index.html`](dotnet/wwwroot/index.html): 3DS2 frontend (copy of the shared `index.html`)
 - [`dotnet/Tests/`](dotnet/Tests/): xUnit tests (`UtilityTests.cs`)
-- [`dotnet/dotnet.csproj`](dotnet/dotnet.csproj): `GlobalPayments.Api` 9.0.16 (declared, not used), `DotEnv.Net` 3.2.1, net9.0
+- [`dotnet/dotnet.csproj`](dotnet/dotnet.csproj): `GlobalPayments.Api` 9.0.16 (declared, not used), `DotEnv.Net` 3.2.1, net10.0
 
 ### Shared
 - [`index.html`](index.html): the 3DS2 frontend; the four per-language `index.html` files are identical copies of it, and those copies are what each server actually serves
