@@ -17,7 +17,7 @@
 ## Repository Structure
 
 ### PHP (built-in PHP server + direct REST)
-- [`php/router.php`](php/router.php): router for `php -S`; maps the health, token, 3DS2 and notification routes, returns 404 for any other `/api/*` path and serves static files otherwise
+- [`php/router.php`](php/router.php): router for `php -S`; maps the health, token, 3DS2 and notification routes, returns 404 for any other `/api/*` path and otherwise serves only the page, its assets and the endpoint scripts (no `.env`, composer files or `vendor/`)
 - [`php/get-access-token.php`](php/get-access-token.php): direct cURL POST to `/ucp/accesstoken`; SHA-512 secret built inline
 - [`php/api/`](php/api/): one file per endpoint (`check-enrollment.php`, `initiate-auth.php`, `get-auth-result.php`, `authorize-payment.php`, `health.php`, `method-notification.php`, `challenge-notification.php`)
 - [`php/src/GpApiClient.php`](php/src/GpApiClient.php): backend token with file cache, cURL wrapper, `toMinorUnits`, `mapColorDepth`, `mapBool`, JSON response helpers
@@ -46,7 +46,7 @@
 - [`dotnet/Utilities.cs`](dotnet/Utilities.cs): `GpUtilities.ToMinorUnits`, `TwoDigitYear`, `MapColorDepth`, `MapBool`
 - [`dotnet/wwwroot/index.html`](dotnet/wwwroot/index.html): 3DS2 frontend (copy of the shared `index.html`)
 - [`dotnet/Tests/`](dotnet/Tests/): xUnit tests (`UtilityTests.cs`)
-- [`dotnet/dotnet.csproj`](dotnet/dotnet.csproj): `GlobalPayments.Api` 9.0.16 (declared, not used), `DotEnv.Net` 3.2.1, net9.0
+- [`dotnet/dotnet.csproj`](dotnet/dotnet.csproj): `GlobalPayments.Api` 9.0.16 (declared, not used), `DotEnv.Net` 3.2.1, net10.0
 
 ### Shared
 - [`index.html`](index.html): the 3DS2 frontend; the four per-language `index.html` files are identical copies of it, and those copies are what each server actually serves

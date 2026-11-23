@@ -12,6 +12,8 @@
  */
 
 import express from 'express';
+import { fileURLToPath } from 'url';
+import { readFileSync } from 'fs';
 import * as dotenv from 'dotenv';
 import crypto from 'crypto';
 import { randomUUID } from 'crypto';
@@ -22,7 +24,10 @@ dotenv.config();
 const app  = express();
 const port = process.env.PORT || 8000;
 
-app.use(express.static('.'));
+// Serve the page and its own assets only, not the server code, package files or .env
+const indexFile = fileURLToPath(new URL('./index.html', import.meta.url));
+const indexHtml = readFileSync(indexFile, 'utf8');
+app.get(['/', '/index.html'], (req, res) => res.type('html').send(indexHtml));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 

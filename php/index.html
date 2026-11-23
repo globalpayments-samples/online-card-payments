@@ -455,7 +455,7 @@ app.post('/webhook', (req, res) => {
             const form = window.GlobalPayments.ui.form({
                 fields: {
                     'card-number':      { placeholder: '4263970000005262', target: '#card-number' },
-                    'card-expiration':  { placeholder: '12/25',            target: '#card-expiration' },
+                    'card-expiration':  { placeholder: 'MM/YY',            target: '#card-expiration' },
                     'card-cvv':         { placeholder: '123',              target: '#card-cvv' },
                     'card-holder-name': { placeholder: 'Jane Smith',       target: '#card-holder-name' }
                 },
