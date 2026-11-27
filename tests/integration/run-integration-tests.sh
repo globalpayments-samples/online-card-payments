@@ -29,8 +29,8 @@ YELLOW='\033[1;33m'
 RESET='\033[0m'
 
 log_pass() { echo -e "${GREEN}  PASS${RESET} $1"; PASS=$((PASS + 1)); }
-log_fail() { echo -e "${RED}  FAIL${RESET} $1 — $2"; FAIL=$((FAIL + 1)); }
-log_skip() { echo -e "${YELLOW}  SKIP${RESET} $1 — $2"; SKIP=$((SKIP + 1)); }
+log_fail() { echo -e "${RED}  FAIL${RESET} $1: $2"; FAIL=$((FAIL + 1)); }
+log_skip() { echo -e "${YELLOW}  SKIP${RESET} $1: $2"; SKIP=$((SKIP + 1)); }
 
 echo ""
 echo "══════════════════════════════════════════════════"
