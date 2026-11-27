@@ -8,7 +8,7 @@
 
 2. **Every GP-API call is direct REST, not SDK.** All four implementations build `/ucp/accesstoken`, `/ucp/authentications` and `/ucp/transactions` requests by hand with an `X-GP-Version: 2021-03-22` header and a `Bearer` token. Both token calls use a SHA-512 hash of `nonce + appKey` as the `secret`: the tokenization token uses 16 random bytes hex-encoded as the nonce, the backend token uses an ISO-8601 timestamp, which the `transaction_processing` account requires. The Global Payments SDKs are still declared in each manifest, but nothing in the 3DS2 flow imports them. Only the legacy `php/process-sale.php` does.
 
-3. **The Sale carries the 3DS2 proof.** The browser drives six steps in order: check enrollment, 3DS method iframe (only when a `method_url` comes back), initiate auth, ACS challenge (only when `acs_challenge_url` and `acs_signed_content` come back), get auth result, authorize payment. `/api/authorize-payment` sends `POST /ucp/transactions` with `type: "SALE"` and a `three_ds` block holding `authentication_value`, `server_trans_ref`, `ds_trans_ref`, `eci` and `message_version` from the auth result. Amounts go to GP-API as minor-unit strings (`"10.00"` becomes `"1000"`), browser data uses GP-API enums (`color_depth: "TWENTY_FOUR_BITS"`, `java_enabled: "TRUE"` or `"FALSE"`), and an `AUT_` prefix on `server_trans_id` is stripped before it goes back to GP-API. The unit tests in each language pin these mappings down.
+3. **The Sale carries the 3DS2 proof.** The browser drives six steps in order: check enrollment, 3DS method iframe (only when a `method_url` comes back), initiate auth, ACS challenge (only when `acs_challenge_url` and `acs_signed_content` come back), get auth result, authorize payment. Initiate goes to `POST /ucp/authentications/{AUT_id}/initiate` and the result comes from `POST /ucp/authentications/{AUT_id}/result`, always with the full `AUT_` id (a bare UUID gets the prefix added). `/api/authorize-payment` sends `POST /ucp/transactions` with `type: "SALE"` and `payment_method.authentication.id` set to that `AUT_` id; GP-API pulls the ECI, authentication value and DS reference from the authentication itself and ignores a top-level `three_ds` block on a transaction. Amounts go to GP-API as minor-unit strings (`"10.00"` becomes `"1000"`) and browser data uses GP-API enums (`color_depth: "TWENTY_FOUR_BITS"`, `java_enabled: "TRUE"` or `"FALSE"`). The page stops before initiate when the card is not `ENROLLED`, stops before the sale unless the result is `SUCCESS_AUTHENTICATED` or `SUCCESS_ATTEMPT_MADE` (GP-API would otherwise capture it without liability shift), and shows anything other than `CAPTURED` as an error. The unit tests in each language pin these mappings down.
 
 4. **Leave `GP_ACCOUNT_NAME` as `transaction_processing`.** Every authentication and transaction request sends `account_name` from `GP_ACCOUNT_NAME`, falling back to `transaction_processing`, along with `account_id` from `GP_ACCOUNT_ID` and `merchant_id` from `GP_MERCHANT_ID`. Any other account name breaks authentication.
 
@@ -63,13 +63,13 @@
 | GET | `/api/health` | Returns `{"status":"ok","backend":"<language>","version":"1.0.0"}` |
 | POST | `/get-access-token` | Returns a short-lived Drop-In UI tokenization token (`PMT_POST_Create_Single`) |
 | POST | `/api/check-enrollment` | Step 1: `POST /ucp/authentications` with the `PMT_…` token; returns `server_trans_id`, `enrolled`, `message_version`, `method_url`, `method_data` |
-| POST | `/api/initiate-auth` | Step 3: `POST /ucp/authentications` with browser data, order and payer; returns `status` plus the ACS challenge fields |
-| POST | `/api/get-auth-result` | Step 5: `GET /ucp/authentications/{id}`; returns `status`, `eci`, `authentication_value`, `ds_trans_ref`, `message_version`, `server_trans_ref` |
-| POST | `/api/authorize-payment` | Step 6: `POST /ucp/transactions` SALE with the 3DS2 proof; returns `transaction_id`, `status`, `result_code`, `amount`, `currency` |
+| POST | `/api/initiate-auth` | Step 3: `POST /ucp/authentications/{AUT_id}/initiate` with browser data, order, payer and notification URLs; returns `status` plus the ACS challenge fields (`acs_challenge_url` from `acs_challenge_request_url`, `acs_signed_content` from `challenge_value`) |
+| POST | `/api/get-auth-result` | Step 5: `POST /ucp/authentications/{AUT_id}/result`; returns `server_trans_id`, `status`, `eci`, `authentication_value`, `ds_trans_ref`, `message_version`, `server_trans_ref` |
+| POST | `/api/authorize-payment` | Step 6: `POST /ucp/transactions` SALE with `payment_method.authentication.id`; returns `transaction_id`, `status`, `result_code`, `amount`, `currency` |
 | GET, POST | `/3ds/method-notification` | Method iframe callback; posts `methodComplete` to the parent window |
 | GET, POST | `/3ds/challenge-notification` | ACS challenge callback; posts `authResult` to the parent window |
 
-JSON request/response shapes are identical across all four implementations. The `/api/*` routes answer `{"success":true,"data":{...},"raw":{...}}` where `raw` is the untouched GP-API body, and failures come back as `{"success":false,"error":"...","gp_error_code":"...","gp_error_detail":"...","raw":{...}}`. PHP runs behind `router.php`, so it exposes the same paths as the other three and every frontend copy calls `fetch('/get-access-token')` and the `/api/*` paths. There is no `GET /config` endpoint in this project (PHP's `config.php` is a vestigial file not on the documented flow).
+JSON request/response shapes are identical across all four implementations. The `/api/*` routes answer `{"success":true,"data":{...},"raw":{...}}` where `raw` is the untouched GP-API body, and failures come back as `{"success":false,"error":"...","gp_error_code":"...","gp_error_detail":"...","raw":{...}}`, where `gp_error_code` and `gp_error_detail` are GP-API's `error_code` and `detailed_error_description`. PHP runs behind `router.php`, so it exposes the same paths as the other three and every frontend copy calls `fetch('/get-access-token')` and the `/api/*` paths. There is no `GET /config` endpoint in this project (PHP's `config.php` is a vestigial file not on the documented flow).
 
 ## Environment Variables
 
@@ -106,8 +106,8 @@ Applies to the tokenization token call (`/get-access-token`). The backend token 
 | Scenario | Number | CVV | Expiry |
 |----------|--------|-----|--------|
 | Frictionless success (no challenge) | 4263970000005262 | 123 | Any future date |
-| Challenge required | 4012001038443335 | 123 | Any future date |
-| Declined | 4000120000001154 | 123 | Any future date |
+| Challenge required (out of band, the sandbox ACS approves it after 10 seconds) | 4012001037141112 | 123 | Any future date |
+| Authentication fails, payment not attempted | 4000120000001154 | 123 | Any future date |
 
 Get sandbox credentials at [developer.globalpayments.com](https://developer.globalpayments.com).
 
@@ -115,9 +115,9 @@ Get sandbox credentials at [developer.globalpayments.com](https://developer.glob
 
 **Tokenization:** browser → `POST /get-access-token` → server SHA-512 + direct REST → GP-API returns tokenization token → Drop-In UI iframe tokenizes the card → `PMT_…` reference returned to browser.
 
-**Authentication:** browser → `POST /api/check-enrollment` with `{payment_token, flow_nonce}` → if a `method_url` comes back, hidden iframe posts `method_data` to it and waits for `methodComplete` → `POST /api/initiate-auth` with browser data and the method completion status → if the ACS asks for a challenge, iframe overlay posts `acs_signed_content` to `acs_challenge_url` and waits for `authResult` → `POST /api/get-auth-result` → `eci`, `authentication_value`, `ds_trans_ref`, `server_trans_ref`, `message_version`.
+**Authentication:** browser → `POST /api/check-enrollment` with `{payment_token, flow_nonce}` → if a `method_url` comes back, hidden iframe posts `method_data` to it and waits for `methodComplete` → `POST /api/initiate-auth` with browser data and the method completion status → if the ACS asks for a challenge, iframe overlay posts `acs_signed_content` to `acs_challenge_url` and waits for `authResult` → `POST /api/get-auth-result` → `server_trans_id`, `eci`, `authentication_value`, `ds_trans_ref`, `server_trans_ref`, `message_version`.
 
-**Charge:** browser → `POST /api/authorize-payment` with `{payment_token, amount, currency, three_ds}` → server `POST /ucp/transactions` with `type: "SALE"` and the 3DS2 proof → response with `transaction_id`, `status`, `result_code`, `amount`, `currency`.
+**Charge:** browser → `POST /api/authorize-payment` with `{payment_token, amount, currency, three_ds}` → server `POST /ucp/transactions` with `type: "SALE"` and `payment_method.authentication.id` → response with `transaction_id`, `status`, `result_code`, `amount`, `currency`.
 
 ## Security Notes
 
