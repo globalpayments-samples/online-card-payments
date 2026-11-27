@@ -58,7 +58,8 @@ async function gpRequest(method, path, body) {
     const data = await resp.json();
 
     if (!resp.ok) {
-        const err    = new Error(data.error?.message || `GP-API error ${resp.status}`);
+        // GP-API errors come back as { error_code, detailed_error_description }
+        const err    = new Error(data.detailed_error_description || data.error_code || `GP-API error ${resp.status}`);
         err.gpData   = data;
         err.status   = resp.status;
         throw err;
@@ -68,6 +69,13 @@ async function gpRequest(method, path, body) {
 
 function toMinorUnits(amount) {
     return String(Math.round(parseFloat(amount) * 100));
+}
+
+// GP-API addresses an authentication by its full id (AUT_...). Callers may hand
+// back the bare server_trans_ref, so add the prefix when it is missing.
+function authenticationId(id) {
+    const value = String(id);
+    return value.startsWith('AUT_') ? value : `AUT_${value}`;
 }
 
 function twoDigitYear(year) {
@@ -91,8 +99,8 @@ function gpError(res, err) {
     return res.status(err.status || 500).json({
         success:         false,
         error:           err.message,
-        gp_error_code:   d.error?.code,
-        gp_error_detail: d.error?.detail,
+        gp_error_code:   d.error_code,
+        gp_error_detail: d.detailed_error_description,
         raw:             d,
     });
 }
@@ -224,8 +232,7 @@ app.post('/api/initiate-auth', async (req, res) => {
         if (!payment_token)   return res.status(400).json({ success: false, error: 'payment_token is required' });
         if (!server_trans_id) return res.status(400).json({ success: false, error: 'server_trans_id is required' });
 
-        // GP-API expects plain UUID — strip AUT_ prefix if present
-        const serverTransRef = String(server_trans_id).replace(/^AUT_/, '');
+        const authId = authenticationId(server_trans_id);
 
         const amount   = order?.amount   || '10.00';
         const currency = order?.currency || 'GBP';
@@ -248,7 +255,6 @@ app.post('/api/initiate-auth', async (req, res) => {
                 source:           'BROWSER',
                 preference:       'NO_PREFERENCE',
                 message_version:  message_version || '2.1.0',
-                server_trans_ref: serverTransRef,
             },
             order: {
                 amount:            toMinorUnits(amount),
@@ -285,17 +291,19 @@ app.post('/api/initiate-auth', async (req, res) => {
             },
         };
 
-        const raw = await gpRequest('POST', '/authentications', payload);
+        const raw = await gpRequest('POST', `/authentications/${encodeURIComponent(authId)}/initiate`, payload);
 
+        // For a browser challenge GP-API returns the ACS URL and the encoded CReq
+        // the page has to post to it
         res.json({
             success: true,
             data: {
                 server_trans_id:      raw.id,
                 status:               raw.status,
                 acs_reference_number: raw.three_ds?.acs_reference_number,
-                acs_trans_id:         raw.three_ds?.acs_trans_id,
-                acs_signed_content:   raw.three_ds?.acs_signed_content,
-                acs_challenge_url:    raw.three_ds?.acs_challenge_url || raw.three_ds?.challenge_value || null,
+                acs_trans_id:         raw.three_ds?.acs_trans_ref,
+                acs_signed_content:   raw.three_ds?.challenge_value || null,
+                acs_challenge_url:    raw.three_ds?.acs_challenge_request_url || null,
             },
             raw,
         });
@@ -313,18 +321,13 @@ app.post('/api/get-auth-result', async (req, res) => {
         const { server_trans_id } = req.body;
         if (!server_trans_id) return res.status(400).json({ success: false, error: 'server_trans_id is required' });
 
-        const transRef  = String(server_trans_id).replace(/^AUT_/, '');
-        const accountQs = new URLSearchParams({
-            account_name: process.env.GP_ACCOUNT_NAME || 'transaction_processing',
-            account_id:   process.env.GP_ACCOUNT_ID   || '',
-            merchant_id:  process.env.GP_MERCHANT_ID  || '',
-        }).toString();
-
-        const raw = await gpRequest('GET', `/authentications/${transRef}?${accountQs}`);
+        const authId = authenticationId(server_trans_id);
+        const raw    = await gpRequest('POST', `/authentications/${encodeURIComponent(authId)}/result`, {});
 
         res.json({
             success: true,
             data: {
+                server_trans_id:      raw.id,
                 status:               raw.status,
                 eci:                  raw.three_ds?.eci,
                 authentication_value: raw.three_ds?.authentication_value,
@@ -363,15 +366,15 @@ app.post('/api/authorize-payment', async (req, res) => {
                 entry_mode: 'ECOM',
                 id:         payment_token,
             },
-            three_ds: {
-                source:               'BROWSER',
-                authentication_value: three_ds?.authentication_value,
-                server_trans_ref:     three_ds?.server_trans_ref,
-                ds_trans_ref:         three_ds?.ds_trans_ref,
-                eci:                  three_ds?.eci,
-                message_version:      three_ds?.message_version || '2.2.0',
-            },
         };
+
+        // GP-API only applies 3DS to a sale through payment_method.authentication.
+        // It takes the ECI, authentication value and DS reference from the
+        // authentication it finds by id.
+        const authRef = three_ds?.server_trans_id || three_ds?.server_trans_ref;
+        if (authRef) {
+            payload.payment_method.authentication = { id: authenticationId(authRef) };
+        }
 
         const raw = await gpRequest('POST', '/transactions', payload);
 
