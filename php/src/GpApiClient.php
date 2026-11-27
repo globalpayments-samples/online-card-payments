@@ -8,6 +8,17 @@ declare(strict_types=1);
  * Uses ISO-8601 nonce (required for transaction_processing account).
  * Token cached in /tmp/gpapi_token.json between requests.
  */
+/**
+ * A failed GP-API call. Holds the decoded error body and the HTTP status.
+ * PHP 8.2+ deprecates dynamic properties on built-in exceptions, and the
+ * deprecation notice would end up in front of the JSON response.
+ */
+class GpApiException extends \RuntimeException
+{
+    public array $gpData = [];
+    public int $httpStatus = 500;
+}
+
 class GpApiClient
 {
     private const GP_VERSION      = '2021-03-22';
@@ -115,13 +126,13 @@ class GpApiClient
 
         $raw    = curl_exec($ch);
         $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         $data = json_decode($raw ?: '{}', true) ?? [];
 
         if ($status < 200 || $status >= 300) {
-            $err = new \RuntimeException(
-                $data['error']['message'] ?? "GP-API error {$status}"
+            // GP-API errors come back as { error_code, detailed_error_description }
+            $err = new GpApiException(
+                ($data['detailed_error_description'] ?? '') ?: ($data['error_code'] ?? "GP-API error {$status}")
             );
             $err->gpData     = $data;
             $err->httpStatus = $status;
@@ -136,6 +147,12 @@ class GpApiClient
     public static function toMinorUnits(string $amount): string
     {
         return (string) (int) round((float) $amount * 100);
+    }
+
+    /** GP-API addresses an authentication by its full id (AUT_...). */
+    public static function authenticationId(string $id): string
+    {
+        return str_starts_with($id, 'AUT_') ? $id : 'AUT_' . $id;
     }
 
     public static function twoDigitYear(string $year): string
@@ -185,8 +202,8 @@ class GpApiClient
         self::jsonResponse([
             'success'         => false,
             'error'           => $e->getMessage(),
-            'gp_error_code'   => $gpData['error']['code']   ?? null,
-            'gp_error_detail' => $gpData['error']['detail'] ?? null,
+            'gp_error_code'   => $gpData['error_code']                 ?? null,
+            'gp_error_detail' => $gpData['detailed_error_description'] ?? null,
             'raw'             => $gpData,
         ], $e->httpStatus ?? $status);
     }
