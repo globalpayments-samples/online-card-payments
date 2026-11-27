@@ -9,6 +9,10 @@ internal static class GpUtilities
     internal static string ToMinorUnits(string amount) =>
         ((int)Math.Round(double.Parse(amount) * 100)).ToString();
 
+    // GP-API addresses an authentication by its full id (AUT_...)
+    internal static string AuthenticationId(string id) =>
+        id.StartsWith("AUT_") ? id : "AUT_" + id;
+
     internal static string TwoDigitYear(string year) =>
         year.Length > 2 ? year[^2..] : year;
 

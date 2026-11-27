@@ -100,16 +100,18 @@ static string MapBool(string v)       => GpPayments.GpUtilities.MapBool(v);
 static string NotificationNonce(string nonce) =>
     System.Text.RegularExpressions.Regex.IsMatch(nonce ?? "", "^[A-Za-z0-9-]{1,64}$") ? $"'{nonce}'" : "undefined";
 
+// GP-API errors come back as { error_code, detailed_error_description }
 IResult GpError(JsonElement root, int status)
 {
-    var msg = root.TryGetProperty("error", out var e) && e.TryGetProperty("message", out var m)
-        ? m.GetString() : $"GP-API error {status}";
+    string? Field(string k) => root.ValueKind == JsonValueKind.Object && root.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+    var code   = Field("error_code");
+    var detail = Field("detailed_error_description");
     return Results.Json(new
     {
         success         = false,
-        error           = msg,
-        gp_error_code   = root.TryGetProperty("error", out var e2) && e2.TryGetProperty("code",   out var c) ? c.GetString() : null,
-        gp_error_detail = root.TryGetProperty("error", out var e3) && e3.TryGetProperty("detail", out var d) ? d.GetString() : null,
+        error           = !string.IsNullOrEmpty(detail) ? detail : !string.IsNullOrEmpty(code) ? code : $"GP-API error {status}",
+        gp_error_code   = code,
+        gp_error_detail = detail,
         raw             = root
     }, statusCode: status);
 }
@@ -284,8 +286,7 @@ app.MapPost("/api/initiate-auth", async (HttpRequest req) =>
         string Get(string k, string def = "") => root.TryGetProperty(k, out var v) ? v.GetString() ?? def : def;
 
         var paymentToken              = Get("payment_token");
-        var serverTransIdRaw          = Get("server_trans_id");
-        var serverTransId             = serverTransIdRaw.StartsWith("AUT_") ? serverTransIdRaw[4..] : serverTransIdRaw;
+        var serverTransId             = Get("server_trans_id");
         var messageVersion            = Get("message_version", "2.1.0");
         var methodUrlCompletionStatus = Get("method_url_completion_status", "NO");
 
@@ -326,7 +327,6 @@ app.MapPost("/api/initiate-auth", async (HttpRequest req) =>
                 source           = "BROWSER",
                 preference       = "NO_PREFERENCE",
                 message_version  = messageVersion,
-                server_trans_ref = serverTransId,
             },
             order = new
             {
@@ -358,12 +358,16 @@ app.MapPost("/api/initiate-auth", async (HttpRequest req) =>
             notifications = new { challenge_return_url = challengeUrl, three_ds_method_return_url = methodUrl }
         };
 
-        var (r, ok, status) = await GpRequest("POST", "/ucp/authentications", payload);
+        var authId = GpPayments.GpUtilities.AuthenticationId(serverTransId);
+        var (r, ok, status) = await GpRequest("POST", $"/ucp/authentications/{Uri.EscapeDataString(authId)}/initiate", payload);
         if (!ok) return GpError(r, status);
 
         var tds = r.TryGetProperty("three_ds", out var t) ? t : default;
         string? Tds(string k) => tds.ValueKind != JsonValueKind.Undefined && tds.TryGetProperty(k, out var v) ? v.GetString() : null;
+        string? NonEmpty(string? v) => string.IsNullOrEmpty(v) ? null : v;
 
+        // For a browser challenge GP-API returns the ACS URL and the encoded CReq
+        // the page has to post to it
         return Results.Ok(new
         {
             success = true,
@@ -372,9 +376,9 @@ app.MapPost("/api/initiate-auth", async (HttpRequest req) =>
                 server_trans_id      = r.GetProperty("id").GetString(),
                 status               = r.TryGetProperty("status", out var s) ? s.GetString() : null,
                 acs_reference_number = Tds("acs_reference_number"),
-                acs_trans_id         = Tds("acs_trans_id"),
-                acs_signed_content   = Tds("acs_signed_content"),
-                acs_challenge_url    = Tds("acs_challenge_url") ?? Tds("challenge_value")
+                acs_trans_id         = Tds("acs_trans_ref"),
+                acs_signed_content   = NonEmpty(Tds("challenge_value")),
+                acs_challenge_url    = NonEmpty(Tds("acs_challenge_request_url"))
             },
             raw = r
         });
@@ -394,13 +398,13 @@ app.MapPost("/api/get-auth-result", async (HttpRequest req) =>
     try
     {
         var root             = (await JsonDocument.ParseAsync(req.Body)).RootElement;
-        var serverTransIdRaw = root.TryGetProperty("server_trans_id", out var stidProp) ? stidProp.GetString() : null;
-        var serverTransId    = serverTransIdRaw?.StartsWith("AUT_") == true ? serverTransIdRaw[4..] : serverTransIdRaw;
+        var serverTransId = root.TryGetProperty("server_trans_id", out var stidProp) ? stidProp.GetString() : null;
 
         if (string.IsNullOrEmpty(serverTransId))
             return Results.BadRequest(new { success = false, error = "server_trans_id is required" });
 
-        var (r, ok, status) = await GpRequest("GET", $"/ucp/authentications/{serverTransId}");
+        var authId = GpPayments.GpUtilities.AuthenticationId(serverTransId);
+        var (r, ok, status) = await GpRequest("POST", $"/ucp/authentications/{Uri.EscapeDataString(authId)}/result", new { });
         if (!ok) return GpError(r, status);
 
         var tds = r.TryGetProperty("three_ds", out var t) ? t : default;
@@ -411,6 +415,7 @@ app.MapPost("/api/get-auth-result", async (HttpRequest req) =>
             success = true,
             data = new
             {
+                server_trans_id      = r.TryGetProperty("id", out var id) ? id.GetString() : null,
                 status               = r.TryGetProperty("status", out var s) ? s.GetString() : null,
                 eci                  = Tds("eci"),
                 authentication_value = Tds("authentication_value"),
@@ -451,6 +456,7 @@ app.MapPost("/api/authorize-payment", async (HttpRequest req) =>
         var accountName = Environment.GetEnvironmentVariable("GP_ACCOUNT_NAME") ?? "transaction_processing";
         var accountId   = Environment.GetEnvironmentVariable("GP_ACCOUNT_ID");
         var merchantId  = Environment.GetEnvironmentVariable("GP_MERCHANT_ID");
+        var authRef     = Td("server_trans_id") is { Length: > 0 } sid ? sid : Td("server_trans_ref");
 
         var payload = new
         {
@@ -463,16 +469,12 @@ app.MapPost("/api/authorize-payment", async (HttpRequest req) =>
             currency,
             reference      = Guid.NewGuid().ToString(),
             country        = "GB",
-            payment_method = new { entry_mode = "ECOM", id = paymentToken },
-            three_ds = new
-            {
-                source               = "BROWSER",
-                authentication_value = Td("authentication_value"),
-                server_trans_ref     = Td("server_trans_ref"),
-                ds_trans_ref         = Td("ds_trans_ref"),
-                eci                  = Td("eci"),
-                message_version      = Td("message_version") ?? "2.2.0"
-            }
+            // GP-API only applies 3DS to a sale through payment_method.authentication.
+            // It takes the ECI, authentication value and DS reference from the
+            // authentication it finds by id.
+            payment_method = string.IsNullOrEmpty(authRef)
+                ? (object)new { entry_mode = "ECOM", id = paymentToken }
+                : new { entry_mode = "ECOM", id = paymentToken, authentication = new { id = GpPayments.GpUtilities.AuthenticationId(authRef) } }
         };
 
         var (r, ok, status) = await GpRequest("POST", "/ucp/transactions", payload);

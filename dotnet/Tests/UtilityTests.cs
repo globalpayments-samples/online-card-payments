@@ -74,26 +74,15 @@ public class UtilityTests
         Assert.Equal("25", GpUtilities.TwoDigitYear("25"));
     }
 
-    // ── AUT_ prefix stripping (mirrors Program.cs logic) ─────────────────────
+    // ── authentication id ─────────────────────────────────────────────────────
 
     [Theory]
-    [InlineData("AUT_abc-123-def", "abc-123-def")]
-    [InlineData("plain-uuid",      "plain-uuid")]
-    [InlineData("AUT_",            "")]
-    [InlineData("",                "")]
-    public void AutPrefix_StrippedCorrectly(string input, string expected)
+    [InlineData("AUT_abc-123-def", "AUT_abc-123-def")]
+    [InlineData("plain-uuid",      "AUT_plain-uuid")]
+    public void AuthenticationId_KeepsOrAddsPrefix(string input, string expected)
     {
-        // Mirrors: serverTransIdRaw.StartsWith("AUT_") ? serverTransIdRaw[4..] : serverTransIdRaw
-        var result = input.StartsWith("AUT_") ? input[4..] : input;
-        Assert.Equal(expected, result);
-    }
-
-    [Fact]
-    public void AutPrefix_MidString_NotStripped()
-    {
-        var input  = "prefix_AUT_abc";
-        var result = input.StartsWith("AUT_") ? input[4..] : input;
-        Assert.Equal("prefix_AUT_abc", result);
+        // /authentications/{id}/initiate and /result need the full AUT_ id
+        Assert.Equal(expected, GpUtilities.AuthenticationId(input));
     }
 
     // ── SHA-512 nonce hashing ─────────────────────────────────────────────────
