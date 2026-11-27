@@ -92,8 +92,8 @@ ngrok http 8000
 | Scenario | Card number |
 |---|---|
 | Frictionless success (no challenge) | 4263 9700 0000 5262 |
-| Challenge required | 4012 0010 3844 3335 |
-| Declined | 4000 1200 0000 1154 |
+| Challenge required (the sandbox ACS approves it after 10 seconds) | 4012 0010 3714 1112 |
+| Authentication fails, payment not attempted | 4000 1200 0000 1154 |
 
 Use any future expiry date and any 3-digit CVV. More test cards at [developer.globalpayments.com/resources/test-cards](https://developer.globalpayments.com/resources/test-cards).
 
