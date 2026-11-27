@@ -385,7 +385,10 @@ app.post('/webhook', (req, res) => {
             setStep('enroll', 'active');
             setStatus('Checking 3DS2 enrollment…');
             const enroll = await apiPost('/api/check-enrollment', { payment_token: paymentToken, flow_nonce: flowNonce });
-            const { server_trans_id, message_version, method_url, method_data } = enroll.data;
+            const { server_trans_id, message_version, method_url, method_data, enrolled } = enroll.data;
+            if (enrolled !== 'ENROLLED') {
+                throw new Error(`This card is not enrolled for 3DS2 (${enrolled || 'unknown'}), so the payment was not attempted`);
+            }
             setStep('enroll', 'done');
 
             // 2. Silent 3DS method
@@ -421,6 +424,11 @@ app.post('/webhook', (req, res) => {
             const authResult = await apiPost('/api/get-auth-result', {
                 server_trans_id: auth.data.server_trans_id
             });
+            // GP-API still captures a sale whose authentication failed, just without
+            // liability shift, so stop here unless the cardholder was authenticated
+            if (!['SUCCESS_AUTHENTICATED', 'SUCCESS_ATTEMPT_MADE'].includes(authResult.data.status)) {
+                throw new Error(`3DS2 authentication ${authResult.data.status || 'failed'}, so the payment was not attempted`);
+            }
             setStep('result', 'done');
 
             // 6. Charge
@@ -432,6 +440,9 @@ app.post('/webhook', (req, res) => {
                 currency:      'GBP',
                 three_ds:      authResult.data
             });
+            if (payment.data.status !== 'CAPTURED') {
+                throw new Error(`Payment ${payment.data.status || 'failed'} (${payment.data.result_code || 'no result code'})`);
+            }
             setStep('charge', 'done');
             setStatus('');
             showResult(payment.data);
