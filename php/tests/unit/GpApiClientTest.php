@@ -114,16 +114,14 @@ class GpApiClientTest extends TestCase
         $this->assertSame(4, substr_count($uuid, '-'));
     }
 
-    // ── AUT_ prefix stripping ─────────────────────────────────────────────────
+    // ── authentication id ─────────────────────────────────────────────────────
 
     #[Test]
-    public function testAutPrefixStripping(): void
+    public function testAuthenticationIdKeepsOrAddsPrefix(): void
     {
-        // Mirrors: preg_replace('/^AUT_/', '', $serverTransIdRaw)
-        $this->assertSame('abc-123',          preg_replace('/^AUT_/', '', 'AUT_abc-123'));
-        $this->assertSame('plain-uuid',       preg_replace('/^AUT_/', '', 'plain-uuid'));
-        $this->assertSame('prefix_AUT_abc',   preg_replace('/^AUT_/', '', 'prefix_AUT_abc'));
-        $this->assertSame('',                 preg_replace('/^AUT_/', '', ''));
+        // /authentications/{id}/initiate and /result need the full AUT_ id
+        $this->assertSame('AUT_abc-123', GpApiClient::authenticationId('AUT_abc-123'));
+        $this->assertSame('AUT_plain-uuid', GpApiClient::authenticationId('plain-uuid'));
     }
 
     // ── SHA-512 nonce hashing ─────────────────────────────────────────────────

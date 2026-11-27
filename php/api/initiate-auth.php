@@ -14,8 +14,7 @@ if (!$paymentToken) {
     GpApiClient::jsonResponse(['success' => false, 'error' => 'payment_token is required'], 400);
 }
 
-$serverTransIdRaw         = $input['server_trans_id']             ?? '';
-$serverTransId            = preg_replace('/^AUT_/', '', $serverTransIdRaw);
+$serverTransId            = (string) ($input['server_trans_id']    ?? '');
 $messageVersion           = $input['message_version']              ?? '2.1.0';
 $methodUrlCompletionStatus = $input['method_url_completion_status'] ?? 'NO';
 $browserData              = $input['browser_data']                 ?? [];
@@ -31,7 +30,8 @@ if (!$serverTransId) {
 }
 
 try {
-    $raw = GpApiClient::request('POST', '/authentications', [
+    $authId = GpApiClient::authenticationId($serverTransId);
+    $raw = GpApiClient::request('POST', '/authentications/' . rawurlencode($authId) . '/initiate', [
         'account_name'   => getenv('GP_ACCOUNT_NAME') ?: 'transaction_processing',
         'account_id'     => getenv('GP_ACCOUNT_ID')   ?: null,
         'merchant_id'    => getenv('GP_MERCHANT_ID')  ?: null,
@@ -49,7 +49,6 @@ try {
             'source'           => 'BROWSER',
             'preference'       => 'NO_PREFERENCE',
             'message_version'  => $messageVersion,
-            'server_trans_ref' => $serverTransId,
         ],
         'order' => [
             'amount'            => GpApiClient::toMinorUnits($amount),
@@ -86,15 +85,17 @@ try {
         ],
     ]);
 
+    // For a browser challenge GP-API returns the ACS URL and the encoded CReq
+    // the page has to post to it
     GpApiClient::jsonResponse([
         'success' => true,
         'data' => [
             'server_trans_id'      => $raw['id'],
             'status'               => $raw['status']                             ?? null,
             'acs_reference_number' => $raw['three_ds']['acs_reference_number']   ?? null,
-            'acs_trans_id'         => $raw['three_ds']['acs_trans_id']           ?? null,
-            'acs_signed_content'   => $raw['three_ds']['acs_signed_content']     ?? null,
-            'acs_challenge_url'    => $raw['three_ds']['acs_challenge_url']      ?? $raw['three_ds']['challenge_value'] ?? null,
+            'acs_trans_id'         => $raw['three_ds']['acs_trans_ref']             ?? null,
+            'acs_signed_content'   => ($raw['three_ds']['challenge_value']          ?? '') ?: null,
+            'acs_challenge_url'    => ($raw['three_ds']['acs_challenge_request_url'] ?? '') ?: null,
         ],
         'raw' => $raw,
     ]);

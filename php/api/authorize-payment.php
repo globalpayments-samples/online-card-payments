@@ -18,7 +18,7 @@ if (!$paymentToken) {
 }
 
 try {
-    $raw = GpApiClient::request('POST', '/transactions', [
+    $payload = [
         'account_name'   => getenv('GP_ACCOUNT_NAME') ?: 'transaction_processing',
         'account_id'     => getenv('GP_ACCOUNT_ID')   ?: null,
         'merchant_id'    => getenv('GP_MERCHANT_ID')  ?: null,
@@ -32,15 +32,17 @@ try {
             'entry_mode' => 'ECOM',
             'id'         => $paymentToken,
         ],
-        'three_ds' => [
-            'source'               => 'BROWSER',
-            'authentication_value' => $threeDsIn['authentication_value'] ?? null,
-            'server_trans_ref'     => $threeDsIn['server_trans_ref']     ?? null,
-            'ds_trans_ref'         => $threeDsIn['ds_trans_ref']         ?? null,
-            'eci'                  => $threeDsIn['eci']                  ?? null,
-            'message_version'      => $threeDsIn['message_version']      ?? '2.2.0',
-        ],
-    ]);
+    ];
+
+    // GP-API only applies 3DS to a sale through payment_method.authentication.
+    // It takes the ECI, authentication value and DS reference from the
+    // authentication it finds by id.
+    $authRef = ($threeDsIn['server_trans_id'] ?? '') ?: ($threeDsIn['server_trans_ref'] ?? '');
+    if ($authRef) {
+        $payload['payment_method']['authentication'] = ['id' => GpApiClient::authenticationId((string) $authRef)];
+    }
+
+    $raw = GpApiClient::request('POST', '/transactions', $payload);
 
     GpApiClient::jsonResponse([
         'success' => true,
