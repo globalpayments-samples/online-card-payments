@@ -28,9 +28,9 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 RESET='\033[0m'
 
-log_pass() { echo -e "${GREEN}  PASS${RESET} $1"; ((PASS++)); }
-log_fail() { echo -e "${RED}  FAIL${RESET} $1 — $2"; ((FAIL++)); }
-log_skip() { echo -e "${YELLOW}  SKIP${RESET} $1 — $2"; ((SKIP++)); }
+log_pass() { echo -e "${GREEN}  PASS${RESET} $1"; PASS=$((PASS + 1)); }
+log_fail() { echo -e "${RED}  FAIL${RESET} $1 — $2"; FAIL=$((FAIL + 1)); }
+log_skip() { echo -e "${YELLOW}  SKIP${RESET} $1 — $2"; SKIP=$((SKIP + 1)); }
 
 echo ""
 echo "══════════════════════════════════════════════════"
@@ -41,7 +41,10 @@ echo "════════════════════════�
 
 post() {
     local path="$1"
-    local body="${2:-{}}"
+    # "${2:-{}}" would append a stray "}" to every body that is passed in
+    local body="${2:-}"
+    [[ -n "$body" ]] || body='{}'
+
     curl -s -X POST \
         -H "Content-Type: application/json" \
         -d "$body" \
@@ -87,8 +90,9 @@ else
 fi
 
 EXPIRES=$(echo "$token_resp" | jq -r '.expiresIn // empty')
-if [[ "$EXPIRES" == "600" ]]; then
-    log_pass "T04 expiresIn=600"
+# GP-API answers seconds_to_expire with 599 or 600 for a 600 second request
+if [[ "$EXPIRES" =~ ^[0-9]+$ ]] && (( EXPIRES > 500 && EXPIRES <= 600 )); then
+    log_pass "T04 expiresIn=$EXPIRES"
 else
     log_fail "T04 expiresIn" "got $EXPIRES"
 fi
@@ -114,7 +118,7 @@ fi
 
 # T08: With fake PMT token — expect GP-API error (not a 500 crash)
 err_resp2=$(post "/api/check-enrollment" '{"payment_token":"PMT_fake_token_123"}')
-if echo "$err_resp2" | jq -e '.success' > /dev/null 2>&1; then
+if echo "$err_resp2" | jq -e 'has("success")' > /dev/null 2>&1; then
     log_pass "T08 POST /api/check-enrollment with fake token → structured response (no crash)"
 else
     log_fail "T08 fake token response shape" "$err_resp2"
@@ -153,7 +157,7 @@ fi
 
 # T12: With fake trans ID — GP-API will 404, but response must be structured
 err_resp2=$(post "/api/get-auth-result" '{"server_trans_id":"AUT_fake-id-000"}')
-if echo "$err_resp2" | jq -e '.success' > /dev/null 2>&1; then
+if echo "$err_resp2" | jq -e 'has("success")' > /dev/null 2>&1; then
     log_pass "T12 POST /api/get-auth-result fake ID → structured response"
 else
     log_fail "T12 fake trans ID response" "$err_resp2"
@@ -172,7 +176,7 @@ else
 fi
 
 err_resp2=$(post "/api/authorize-payment" '{"payment_token":"PMT_fake"}')
-if echo "$err_resp2" | jq -e '.success' > /dev/null 2>&1; then
+if echo "$err_resp2" | jq -e 'has("success")' > /dev/null 2>&1; then
     log_pass "T14 POST /api/authorize-payment fake token → structured response"
 else
     log_fail "T14 fake token response" "$err_resp2"
@@ -194,7 +198,7 @@ fi
 
 # ── T16: Content-Type response header ─────────────────────────────────────────
 
-ct_header=$(curl -s -I -X POST "${BASE_URL}/get-access-token" \
+ct_header=$(curl -s -D - -o /dev/null -X POST "${BASE_URL}/get-access-token" \
     -H "Content-Type: application/json" -d "{}" | grep -i "content-type" || true)
 
 if echo "$ct_header" | grep -qi "application/json"; then
