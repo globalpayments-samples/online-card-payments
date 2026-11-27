@@ -67,29 +67,22 @@ describe('twoDigitYear algorithm', () => {
     });
 });
 
-// ── AUT_ prefix stripping ─────────────────────────────────────────────────────
+// ── authentication id ─────────────────────────────────────────────────────────
 
-describe('AUT_ prefix stripping', () => {
-    // server.js strips AUT_ prefix from server_trans_id before calling GP-API
-    function stripAutPrefix(id) {
-        return String(id).replace(/^AUT_/, '');
+describe('authentication id', () => {
+    // server.js calls /authentications/{id}/initiate and /result with the full AUT_ id
+    function authenticationId(id) {
+        const value = String(id);
+        return value.startsWith('AUT_') ? value : `AUT_${value}`;
     }
 
-    test('strips AUT_ prefix', () => {
-        expect(stripAutPrefix('AUT_abc-123')).toBe('abc-123');
+    test('keeps the AUT_ prefix', () => {
+        expect(authenticationId('AUT_abc-123')).toBe('AUT_abc-123');
     });
 
-    test('leaves plain UUID unchanged', () => {
+    test('adds the prefix to a bare server_trans_ref', () => {
         const uuid = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
-        expect(stripAutPrefix(uuid)).toBe(uuid);
-    });
-
-    test('does not strip AUT_ mid-string', () => {
-        expect(stripAutPrefix('prefix_AUT_abc')).toBe('prefix_AUT_abc');
-    });
-
-    test('empty string stays empty', () => {
-        expect(stripAutPrefix('')).toBe('');
+        expect(authenticationId(uuid)).toBe(`AUT_${uuid}`);
     });
 });
 
@@ -125,8 +118,8 @@ describe('gpError response shape', () => {
         return {
             success:         false,
             error:           err.message,
-            gp_error_code:   d.error?.code,
-            gp_error_detail: d.error?.detail,
+            gp_error_code:   d.error_code,
+            gp_error_detail: d.detailed_error_description,
             raw:             d,
         };
     }
@@ -143,7 +136,7 @@ describe('gpError response shape', () => {
 
     test('gp_error_code from gpData', () => {
         const err = new Error('fail');
-        err.gpData = { error: { code: 'INVALID_REQUEST_DATA', detail: 'missing field' } };
+        err.gpData = { error_code: 'INVALID_REQUEST_DATA', detailed_error_description: 'missing field' };
         const r = gpError(err);
         expect(r.gp_error_code).toBe('INVALID_REQUEST_DATA');
         expect(r.gp_error_detail).toBe('missing field');
