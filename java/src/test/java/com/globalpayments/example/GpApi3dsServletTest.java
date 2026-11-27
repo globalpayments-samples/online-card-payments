@@ -101,26 +101,13 @@ public class GpApi3dsServletTest {
         );
     }
 
-    // ── AUT_ prefix stripping (tested via reflection on initiate-auth logic) ──
+    // ── authentication id ─────────────────────────────────────────────────────
 
     @Test
-    void testAutPrefixStripLogic() {
-        // Mirrors the Java impl: serverTransIdRaw.startsWith("AUT_") ? raw.substring(4) : raw
-        String withPrefix    = "AUT_abc-123-def";
-        String withoutPrefix = "abc-123-def";
-
-        String stripped = withPrefix.startsWith("AUT_") ? withPrefix.substring(4) : withPrefix;
-        assertEquals("abc-123-def", stripped);
-
-        String unchanged = withoutPrefix.startsWith("AUT_") ? withoutPrefix.substring(4) : withoutPrefix;
-        assertEquals("abc-123-def", unchanged);
-    }
-
-    @Test
-    void testAutPrefixStripDoesNotAffectMidString() {
-        String mid = "prefix_AUT_abc";
-        String result = mid.startsWith("AUT_") ? mid.substring(4) : mid;
-        assertEquals("prefix_AUT_abc", result, "AUT_ mid-string must not be stripped");
+    void testAuthenticationIdKeepsOrAddsPrefix() {
+        // /authentications/{id}/initiate and /result need the full AUT_ id
+        assertEquals("AUT_abc-123-def", GpApi3dsServlet.authenticationId("AUT_abc-123-def"));
+        assertEquals("AUT_abc-123-def", GpApi3dsServlet.authenticationId("abc-123-def"));
     }
 
     // ── CORS header values ────────────────────────────────────────────────────

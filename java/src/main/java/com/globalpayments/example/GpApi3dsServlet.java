@@ -235,8 +235,7 @@ public class GpApi3dsServlet extends HttpServlet {
 
     private void handleInitiateAuth(JSONObject in, HttpServletResponse res) throws Exception {
         String paymentToken              = in.optString("payment_token", "");
-        String serverTransIdRaw          = in.optString("server_trans_id", "");
-        String serverTransId             = serverTransIdRaw.startsWith("AUT_") ? serverTransIdRaw.substring(4) : serverTransIdRaw;
+        String serverTransId             = in.optString("server_trans_id", "");
         String messageVersion            = in.optString("message_version",             "2.1.0");
         String methodUrlCompletionStatus = in.optString("method_url_completion_status", "NO");
 
@@ -277,8 +276,7 @@ public class GpApi3dsServlet extends HttpServlet {
         payload.put("three_ds", new JSONObject()
             .put("source",           "BROWSER")
             .put("preference",       "NO_PREFERENCE")
-            .put("message_version",  messageVersion)
-            .put("server_trans_ref", serverTransId));
+            .put("message_version",  messageVersion));
         payload.put("order", new JSONObject()
             .put("amount",            toMinorUnits(amount))
             .put("currency",          currency)
@@ -308,36 +306,35 @@ public class GpApi3dsServlet extends HttpServlet {
             .put("challenge_return_url",       env("CHALLENGE_NOTIFICATION_URL", "") + iaNonceQuery)
             .put("three_ds_method_return_url", env("METHOD_NOTIFICATION_URL",    "") + iaNonceQuery));
 
-        JSONObject raw = gpPost("/authentications", payload);
+        JSONObject raw = gpPost("/authentications/" + urlPart(authenticationId(serverTransId)) + "/initiate", payload);
         JSONObject tds = raw.optJSONObject("three_ds");
 
+        // For a browser challenge GP-API returns the ACS URL and the encoded CReq
+        // the page has to post to it
         JSONObject data = new JSONObject();
         data.put("server_trans_id",      raw.getString("id"));
         data.put("status",               raw.optString("status", null));
         data.put("acs_reference_number", tds != null ? tds.optString("acs_reference_number", null) : null);
-        data.put("acs_trans_id",         tds != null ? tds.optString("acs_trans_id",         null) : null);
-        data.put("acs_signed_content",   tds != null ? tds.optString("acs_signed_content",   null) : null);
-        String challengeUrl = tds != null
-            ? (tds.has("acs_challenge_url") ? tds.optString("acs_challenge_url", null) : tds.optString("challenge_value", null))
-            : null;
-        data.put("acs_challenge_url", challengeUrl);
+        data.put("acs_trans_id",         tds != null ? tds.optString("acs_trans_ref",        null) : null);
+        data.put("acs_signed_content",   tds != null ? emptyToNull(tds.optString("challenge_value", null)) : null);
+        data.put("acs_challenge_url",    tds != null ? emptyToNull(tds.optString("acs_challenge_request_url", null)) : null);
 
         writeSuccess(res, data, raw);
     }
 
     private void handleGetAuthResult(JSONObject in, HttpServletResponse res) throws Exception {
-        String serverTransIdRaw = in.optString("server_trans_id", "");
-        String serverTransId    = serverTransIdRaw.replaceFirst("^AUT_", "");
+        String serverTransId = in.optString("server_trans_id", "");
         if (serverTransId.isEmpty()) {
             res.setStatus(400);
             res.getWriter().write("{\"success\":false,\"error\":\"server_trans_id is required\"}");
             return;
         }
 
-        JSONObject raw = gpGet("/authentications/" + serverTransId);
+        JSONObject raw = gpPost("/authentications/" + urlPart(authenticationId(serverTransId)) + "/result", new JSONObject());
         JSONObject tds = raw.optJSONObject("three_ds");
 
         JSONObject data = new JSONObject();
+        data.put("server_trans_id",      raw.optString("id", null));
         data.put("status",               raw.optString("status", null));
         data.put("eci",                  tds != null ? tds.optString("eci",                  null) : null);
         data.put("authentication_value", tds != null ? tds.optString("authentication_value", null) : null);
@@ -373,16 +370,18 @@ public class GpApi3dsServlet extends HttpServlet {
         payload.put("currency",  currency);
         payload.put("reference", UUID.randomUUID().toString());
         payload.put("country",   "GB");
-        payload.put("payment_method", new JSONObject()
+        JSONObject paymentMethod = new JSONObject()
             .put("entry_mode", "ECOM")
-            .put("id", paymentToken));
-        payload.put("three_ds", new JSONObject()
-            .put("source",               "BROWSER")
-            .put("authentication_value", tds3 != null ? tds3.optString("authentication_value", null) : null)
-            .put("server_trans_ref",     tds3 != null ? tds3.optString("server_trans_ref",     null) : null)
-            .put("ds_trans_ref",         tds3 != null ? tds3.optString("ds_trans_ref",         null) : null)
-            .put("eci",                  tds3 != null ? tds3.optString("eci",                  null) : null)
-            .put("message_version",      tds3 != null ? tds3.optString("message_version", "2.2.0") : "2.2.0"));
+            .put("id", paymentToken);
+        // GP-API only applies 3DS to a sale through payment_method.authentication.
+        // It takes the ECI, authentication value and DS reference from the
+        // authentication it finds by id.
+        String authRef = tds3 == null ? "" : tds3.optString("server_trans_id", "");
+        if (authRef.isEmpty() && tds3 != null) authRef = tds3.optString("server_trans_ref", "");
+        if (!authRef.isEmpty()) {
+            paymentMethod.put("authentication", new JSONObject().put("id", authenticationId(authRef)));
+        }
+        payload.put("payment_method", paymentMethod);
 
         JSONObject raw = gpPost("/transactions", payload);
 
@@ -427,9 +426,10 @@ public class GpApi3dsServlet extends HttpServlet {
         JSONObject result = new JSONObject(bodyStr.isEmpty() ? "{}" : bodyStr);
 
         if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
-            String msg = result.optJSONObject("error") != null
-                ? result.getJSONObject("error").optString("message", "GP-API error " + resp.statusCode())
-                : "GP-API error " + resp.statusCode();
+            // GP-API errors come back as { error_code, detailed_error_description }
+            String msg = emptyToNull(result.optString("detailed_error_description", ""));
+            if (msg == null) msg = emptyToNull(result.optString("error_code", ""));
+            if (msg == null) msg = "GP-API error " + resp.statusCode();
             GpApiException ex = new GpApiException(msg);
             ex.addSuppressed(new RuntimeException("STATUS:" + resp.statusCode()));
             ex.addSuppressed(new RuntimeException("RAW:" + bodyStr));
@@ -521,17 +521,27 @@ public class GpApi3dsServlet extends HttpServlet {
             try {
                 JSONObject rawJson = new JSONObject(rawBody);
                 out.put("raw", rawJson);
-                JSONObject errObj = rawJson.optJSONObject("error");
-                if (errObj != null) {
-                    out.put("gp_error_code",   errObj.optString("code",   ""));
-                    out.put("gp_error_detail", errObj.optString("detail", ""));
-                }
+                out.put("gp_error_code",   rawJson.optString("error_code",                 ""));
+                out.put("gp_error_detail", rawJson.optString("detailed_error_description", ""));
             } catch (Exception ignored) {}
         }
         res.getWriter().write(out.toString());
     }
 
     // ── Utilities ─────────────────────────────────────────────────────────────
+
+    /** GP-API addresses an authentication by its full id (AUT_...). */
+    static String authenticationId(String id) {
+        return id.startsWith("AUT_") ? id : "AUT_" + id;
+    }
+
+    private static String urlPart(String value) {
+        return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    private static String emptyToNull(String value) {
+        return value == null || value.isEmpty() ? null : value;
+    }
 
     // The nonce goes straight into an inline script, so only let through what the
     // page generates (a UUID). Anything else comes back as undefined.
